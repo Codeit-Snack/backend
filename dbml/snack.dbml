@@ -1,0 +1,504 @@
+Project SNACK {
+  database_type: "MySQL"
+}
+
+/* =========================================================
+   ENUMS
+========================================================= */
+Enum org_role {
+  MEMBER
+  ADMIN
+  SUPER_ADMIN
+}
+
+Enum org_type {
+  PERSONAL
+  BUSINESS
+}
+
+Enum invitation_status {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+Enum session_status {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+Enum audit_actor_type {
+  USER
+  SYSTEM
+}
+
+Enum purchase_platform {
+  COUPANG
+  NAVER
+  MARKET_KURLY
+  SSG
+  OTHER
+}
+
+/* 요청(구매자 묶음) 상태는 "집계" 의미로 둔다 */
+Enum purchase_request_status {
+  OPEN                  // seller 응답 대기 포함(초기)
+  PARTIALLY_APPROVED    // seller 일부 승인
+  READY_TO_PURCHASE     // 필요한 seller 모두 승인 완료(구매 진행 가능)
+  REJECTED              // 모든 seller 거절(또는 유효 seller 없음)
+  CANCELED              // 구매자 취소
+  PURCHASED             // 모든 seller order 구매완료
+}
+
+/* 판매자별 주문단위(=판매자 승인/거절 단위) */
+Enum purchase_order_status {
+  PENDING_SELLER_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELED              // 구매자가 seller 승인 전/후 취소할 수 있음(정책)
+  PURCHASED             // 구매자가 실제 구매완료 처리(플랫폼 주문번호 확정 등)
+}
+
+Enum purchase_decision_type {
+  APPROVED
+  REJECTED
+}
+
+/* 예산 홀드도 seller-order 단위로 (부분 승인/거절 대응) */
+Enum budget_reservation_status {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
+/* =========================================================
+   CORE: ORG / USER / MEMBER
+========================================================= */
+Table organizations {
+  id bigint [pk, increment]
+  name varchar(200) [not null]
+  org_type org_type [not null, default: 'BUSINESS']
+
+  // BUSINESS일 때만 의미 있음(앱 레벨에서 not null 강제 권장)
+  business_number varchar(30)
+
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (org_type, name)
+    (business_number)
+    (name)
+  }
+}
+
+Table users {
+  id bigint [pk, increment]
+  email varchar(320) [not null, unique]
+  password_hash varchar(255) [not null]
+  is_active boolean [not null, default: true]
+  last_login_at datetime
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table user_profiles {
+  user_id bigint [pk, ref: > users.id]
+  display_name varchar(100)
+  avatar_url text
+  phone varchar(30)
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table organization_members {
+  id bigint [pk, increment]
+  organization_id bigint [not null, ref: > organizations.id]
+  user_id bigint [not null, ref: > users.id]
+  role org_role [not null, default: 'MEMBER']
+  joined_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  is_active boolean [not null, default: true]
+
+  Indexes {
+    (organization_id, user_id) [unique]
+    (organization_id, role)
+    (user_id)
+  }
+}
+
+/* =========================================================
+   INVITATION (Email invite -> Signup URL)
+========================================================= */
+Table invitations {
+  id bigint [pk, increment]
+  organization_id bigint [not null, ref: > organizations.id]
+  email varchar(320) [not null]
+  invitee_name varchar(100)
+  token_hash varchar(255) [not null]
+  status invitation_status [not null, default: 'PENDING']
+
+  invited_by_user_id bigint [ref: > users.id]
+  role_to_grant org_role [not null, default: 'MEMBER']
+
+  expires_at datetime [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  last_sent_at datetime
+  resent_count int [not null, default: 0]
+  revoked_at datetime
+
+  accepted_user_id bigint [ref: > users.id]
+  accepted_at datetime
+
+  Indexes {
+    (token_hash) [unique]
+    (organization_id, email)
+    (organization_id, status, expires_at)
+    (status)
+    (expires_at)
+  }
+}
+
+/* =========================================================
+   AUTH SESSIONS / PASSWORD RESET
+========================================================= */
+Table auth_sessions {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  current_organization_id bigint [ref: > organizations.id]
+
+  refresh_token_hash varchar(255) [not null]
+  status session_status [not null, default: 'ACTIVE']
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  last_seen_at datetime
+  expires_at datetime [not null]
+  revoked_at datetime
+
+  ip varchar(45)
+  user_agent text
+
+  Indexes {
+    (user_id, status)
+    (current_organization_id)
+    (user_id, current_organization_id)
+    (refresh_token_hash) [unique]
+    (expires_at)
+  }
+}
+
+Table password_reset_tokens {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  token_hash varchar(255) [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  expires_at datetime [not null]
+  used_at datetime
+
+  requested_ip varchar(45)
+  requested_user_agent text
+
+  Indexes {
+    (token_hash) [unique]
+    (user_id, expires_at)
+    (expires_at)
+  }
+}
+
+/* =========================================================
+   PRODUCT CATALOG
+   - 개인/회사 모두 products.organization_id로 판매 가능
+========================================================= */
+Table categories {
+  id bigint [pk, increment]
+  parent_id bigint [ref: > categories.id]
+  name varchar(120) [not null]
+  sort_order int [not null, default: 0]
+  is_active boolean [not null, default: true]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (parent_id, name) [unique]
+    (parent_id)
+    (name)
+  }
+}
+
+Table products {
+  id bigint [pk, increment]
+
+  // seller org (개인/회사 모두 가능)
+  organization_id bigint [not null, ref: > organizations.id]
+
+  category_id bigint [ref: > categories.id]
+  name varchar(200) [not null]
+  price decimal(12,2) [not null]
+
+  image_key varchar(512)
+  product_url text
+
+  purchase_count_cache int [not null, default: 0]
+
+  created_by_user_id bigint [ref: > users.id]
+  is_active boolean [not null, default: true]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (organization_id, is_active, created_at)
+    (category_id, price)
+    (name)
+    (purchase_count_cache)
+  }
+}
+
+/* =========================================================
+   CART (buyer_org + user당 1개)
+========================================================= */
+Table carts {
+  id bigint [pk, increment]
+  organization_id bigint [not null, ref: > organizations.id] // buyer org
+  user_id bigint [not null, ref: > users.id]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (organization_id, user_id) [unique]
+    (user_id)
+  }
+}
+
+Table cart_items {
+  id bigint [pk, increment]
+  cart_id bigint [not null, ref: > carts.id]
+  product_id bigint [not null, ref: > products.id]
+  quantity int [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (cart_id, product_id) [unique]
+    (product_id)
+  }
+}
+
+/* =========================================================
+   PURCHASE REQUEST (buyer의 "요청 묶음")
+   - 여기 status는 seller-order 상태의 집계(OPEN/READY_TO_PURCHASE 등)
+========================================================= */
+Table purchase_requests {
+  id bigint [pk, increment]
+  buyer_organization_id bigint [not null, ref: > organizations.id]
+  requester_user_id bigint [not null, ref: > users.id]
+
+  status purchase_request_status [not null, default: 'OPEN']
+
+  request_message text
+  total_amount decimal(14,2) [not null, default: 0]
+
+  requested_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  canceled_at datetime
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (buyer_organization_id, status, requested_at)
+    (buyer_organization_id, requester_user_id, requested_at)
+    (buyer_organization_id, total_amount, requested_at)
+  }
+}
+
+/* 요청 라인(스냅샷) - seller_org가 박힘 */
+Table purchase_request_items {
+  id bigint [pk, increment]
+  purchase_request_id bigint [not null, ref: > purchase_requests.id]
+
+  seller_organization_id bigint [not null, ref: > organizations.id]
+
+  product_id bigint [ref: > products.id] // nullable
+  product_name_snapshot varchar(200) [not null]
+  product_url_snapshot text
+  unit_price_snapshot decimal(12,2) [not null]
+  quantity int [not null]
+  line_total decimal(14,2) [not null]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (purchase_request_id)
+    (seller_organization_id)
+    (product_id)
+    (purchase_request_id, seller_organization_id)
+  }
+}
+
+/* =========================================================
+   PURCHASE ORDERS (seller별 승인/거절 단위)
+   - One request -> N orders (split by seller_organization_id)
+========================================================= */
+Table purchase_orders {
+  id bigint [pk, increment]
+
+  purchase_request_id bigint [not null, ref: > purchase_requests.id]
+
+  buyer_organization_id bigint [not null, ref: > organizations.id]
+  seller_organization_id bigint [not null, ref: > organizations.id]
+
+  status purchase_order_status [not null, default: 'PENDING_SELLER_APPROVAL']
+
+  platform purchase_platform [not null, default: 'OTHER']
+  external_order_no varchar(100)
+  order_url text
+
+  items_amount decimal(14,2) [not null, default: 0]
+  shipping_fee decimal(12,2) [not null, default: 0]
+
+  // seller 승인/거절 시각
+  approved_at datetime
+  rejected_at datetime
+
+  // 구매(플랫폼 결제/주문완료) 처리 정보
+  ordered_at datetime
+  purchased_by_user_id bigint [ref: > users.id]
+
+  shipping_status varchar(40)
+  delivered_at datetime
+  note text
+
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (purchase_request_id, seller_organization_id) [unique]
+    (buyer_organization_id, status, created_at)
+    (seller_organization_id, status, created_at)
+    (buyer_organization_id, ordered_at)
+    (seller_organization_id, ordered_at)
+    (platform, external_order_no) [unique]
+  }
+}
+
+/* 주문 라인(주문 기준 스냅샷) */
+Table purchase_order_items {
+  id bigint [pk, increment]
+  purchase_order_id bigint [not null, ref: > purchase_orders.id]
+  purchase_request_item_id bigint [ref: > purchase_request_items.id]
+
+  product_id bigint [ref: > products.id]
+  product_name_snapshot varchar(200) [not null]
+  product_url_snapshot text
+  unit_price_snapshot decimal(12,2) [not null]
+  quantity int [not null]
+  line_total decimal(14,2) [not null]
+
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (purchase_order_id)
+    (purchase_request_item_id)
+    (purchase_order_id, purchase_request_item_id) [unique]
+    (purchase_order_id, product_id)
+  }
+}
+
+/* seller 승인/거절 히스토리(감사/이력) */
+Table purchase_order_decisions {
+  id bigint [pk, increment]
+  purchase_order_id bigint [not null, ref: > purchase_orders.id]
+
+  decided_by_user_id bigint [not null, ref: > users.id]
+  decision purchase_decision_type [not null]
+  decision_message text
+  decided_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (purchase_order_id, decided_at)
+    (decided_by_user_id, decided_at)
+  }
+}
+
+/* =========================================================
+   BUDGET RESERVATIONS (HOLD) - seller order 단위
+========================================================= */
+Table budget_reservations {
+  id bigint [pk, increment]
+
+  buyer_organization_id bigint [not null, ref: > organizations.id]
+  purchase_order_id bigint [not null, unique, ref: > purchase_orders.id]
+
+  reserved_amount decimal(14,2) [not null]
+  status budget_reservation_status [not null, default: 'ACTIVE']
+
+  created_by_user_id bigint [ref: > users.id]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  released_at datetime
+  consumed_at datetime
+
+  Indexes {
+    (buyer_organization_id, status, created_at)
+    (buyer_organization_id, created_at)
+  }
+}
+
+/* =========================================================
+   EXPENSE - 구매완료 시점에 확정 (order 단위)
+========================================================= */
+Table expenses {
+  id bigint [pk, increment]
+
+  buyer_organization_id bigint [not null, ref: > organizations.id]
+  purchase_order_id bigint [not null, unique, ref: > purchase_orders.id]
+  purchase_request_id bigint [not null, ref: > purchase_requests.id]
+
+  items_amount decimal(14,2) [not null, default: 0]
+  shipping_amount decimal(14,2) [not null, default: 0]
+  amount decimal(14,2) [not null]
+
+  expensed_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+  recorded_by_user_id bigint [ref: > users.id]
+  note text
+
+  Indexes {
+    (buyer_organization_id, expensed_at)
+    (buyer_organization_id, purchase_request_id)
+    (purchase_order_id)
+  }
+}
+
+/* =========================================================
+   BUDGET (Monthly) - buyer org 단위
+========================================================= */
+Table budget_periods {
+  id bigint [pk, increment]
+  organization_id bigint [not null, ref: > organizations.id]
+  year int [not null]
+  month int [not null]
+  budget_amount decimal(14,2) [not null, default: 0]
+  created_by_user_id bigint [ref: > users.id]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (organization_id, year, month) [unique]
+  }
+}
+
+/* =========================================================
+   AUDIT LOGS
+========================================================= */
+Table audit_logs {
+  id bigint [pk, increment]
+
+  organization_id bigint [ref: > organizations.id]
+  actor_type audit_actor_type [not null, default: 'USER']
+  actor_user_id bigint [ref: > users.id]
+
+  action varchar(80) [not null]
+  target_type varchar(80)
+  target_id bigint
+  message text
+
+  metadata json
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Indexes {
+    (organization_id, created_at)
+    (actor_user_id, created_at)
+    (action, created_at)
+  }
+}

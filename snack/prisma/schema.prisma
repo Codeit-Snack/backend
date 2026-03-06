@@ -1,0 +1,487 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model Organization {
+  id                                                                    BigInt                   @id @default(autoincrement())
+  name                                                                  String                   @db.VarChar(200)
+  orgType                                                               OrgType                  @default(BUSINESS) @map("org_type")
+  businessNumber                                                        String?                  @map("business_number") @db.VarChar(30)
+  createdAt                                                             DateTime                 @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
+  updatedAt                                                             DateTime                 @default(dbgenerated("(now())")) @updatedAt @map("updated_at") @db.DateTime(0)
+  audit_logs                                                            audit_logs[]
+  auth_sessions                                                         auth_sessions[]
+  budget_periods                                                        budget_periods[]
+  budget_reservations                                                   budget_reservations[]
+  carts                                                                 Cart[]
+  expenses                                                              expenses[]
+  invitations                                                           Invitation[]
+  members                                                               OrganizationMember[]
+  products                                                              Product[]
+  purchase_orders_purchase_orders_buyer_organization_idToorganizations  purchase_orders[]        @relation("purchase_orders_buyer_organization_idToorganizations")
+  purchase_orders_purchase_orders_seller_organization_idToorganizations purchase_orders[]        @relation("purchase_orders_seller_organization_idToorganizations")
+  purchase_request_items                                                purchase_request_items[]
+  purchase_requests                                                     PurchaseRequest[]
+
+  @@index([orgType, name], map: "organizations_index_0")
+  @@index([businessNumber], map: "organizations_index_1")
+  @@index([name], map: "organizations_index_2")
+  @@map("organizations")
+}
+
+model User {
+  id                                                BigInt                     @id @default(autoincrement())
+  email                                             String                     @unique(map: "email") @db.VarChar(320)
+  passwordHash                                      String                     @map("password_hash") @db.VarChar(255)
+  isActive                                          Boolean                    @default(true) @map("is_active")
+  lastLoginAt                                       DateTime?                  @map("last_login_at") @db.DateTime(0)
+  createdAt                                         DateTime                   @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
+  updatedAt                                         DateTime                   @default(dbgenerated("(now())")) @updatedAt @map("updated_at") @db.DateTime(0)
+  audit_logs                                        audit_logs[]
+  auth_sessions                                     auth_sessions[]
+  budget_periods                                    budget_periods[]
+  budget_reservations                               budget_reservations[]
+  carts                                             Cart[]
+  expenses                                          expenses[]
+  invitations_invitations_invited_by_user_idTousers Invitation[]               @relation("invitations_invited_by_user_idTousers")
+  invitations_invitations_accepted_user_idTousers   Invitation[]               @relation("invitations_accepted_user_idTousers")
+  memberships                                       OrganizationMember[]
+  password_reset_tokens                             password_reset_tokens[]
+  products                                          Product[]
+  purchase_order_decisions                          purchase_order_decisions[]
+  purchase_orders                                   purchase_orders[]
+  purchase_requests                                 PurchaseRequest[]
+  profile                                           UserProfile?
+
+  @@map("users")
+}
+
+model UserProfile {
+  userId      BigInt   @id @map("user_id")
+  displayName String?  @map("display_name") @db.VarChar(100)
+  avatarUrl   String?  @map("avatar_url") @db.Text
+  phone       String?  @db.VarChar(30)
+  updatedAt   DateTime @default(dbgenerated("(now())")) @updatedAt @map("updated_at") @db.DateTime(0)
+  user        User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "user_profiles_ibfk_1")
+
+  @@map("user_profiles")
+}
+
+model OrganizationMember {
+  id             BigInt       @id @default(autoincrement())
+  organizationId BigInt       @map("organization_id")
+  userId         BigInt       @map("user_id")
+  role           OrgRole      @default(MEMBER)
+  joinedAt       DateTime     @default(dbgenerated("(now())")) @map("joined_at") @db.DateTime(0)
+  isActive       Boolean      @default(true) @map("is_active")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "organization_members_ibfk_1")
+  user           User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "organization_members_ibfk_2")
+
+  @@unique([organizationId, userId], map: "organization_members_index_3")
+  @@index([organizationId, role], map: "organization_members_index_4")
+  @@index([userId], map: "organization_members_index_5")
+  @@map("organization_members")
+}
+
+model Invitation {
+  id                                          BigInt           @id @default(autoincrement())
+  organizationId                              BigInt           @map("organization_id")
+  email                                       String           @db.VarChar(320)
+  inviteeName                                 String?          @map("invitee_name") @db.VarChar(100)
+  tokenHash                                   String           @unique(map: "invitations_index_6") @map("token_hash") @db.VarChar(255)
+  status                                      InvitationStatus @default(PENDING)
+  invitedByUserId                             BigInt?          @map("invited_by_user_id")
+  roleToGrant                                 OrgRole          @default(MEMBER) @map("role_to_grant")
+  expiresAt                                   DateTime         @map("expires_at") @db.DateTime(0)
+  createdAt                                   DateTime         @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
+  lastSentAt                                  DateTime?        @map("last_sent_at") @db.DateTime(0)
+  resentCount                                 Int              @default(0) @map("resent_count")
+  revokedAt                                   DateTime?        @map("revoked_at") @db.DateTime(0)
+  acceptedUserId                              BigInt?          @map("accepted_user_id")
+  acceptedAt                                  DateTime?        @map("accepted_at") @db.DateTime(0)
+  organization                                Organization     @relation(fields: [organizationId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invitations_ibfk_1")
+  users_invitations_invited_by_user_idTousers User?            @relation("invitations_invited_by_user_idTousers", fields: [invitedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invitations_ibfk_2")
+  users_invitations_accepted_user_idTousers   User?            @relation("invitations_accepted_user_idTousers", fields: [acceptedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "invitations_ibfk_3")
+
+  @@index([acceptedUserId], map: "accepted_user_id")
+  @@index([expiresAt], map: "invitations_index_10")
+  @@index([organizationId, email], map: "invitations_index_7")
+  @@index([organizationId, status, expiresAt], map: "invitations_index_8")
+  @@index([status], map: "invitations_index_9")
+  @@index([invitedByUserId], map: "invited_by_user_id")
+  @@map("invitations")
+}
+
+model Category {
+  id        BigInt     @id @default(autoincrement())
+  parentId  BigInt?    @map("parent_id")
+  name      String     @db.VarChar(120)
+  sortOrder Int        @default(0) @map("sort_order")
+  isActive  Boolean    @default(true) @map("is_active")
+  createdAt DateTime   @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
+  parent    Category?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "categories_ibfk_1")
+  children  Category[] @relation("CategoryParent")
+  products  Product[]
+
+  @@unique([parentId, name], map: "categories_index_19")
+  @@index([parentId], map: "categories_index_20")
+  @@index([name], map: "categories_index_21")
+  @@map("categories")
+}
+
+model Product {
+  id                     BigInt                   @id @default(autoincrement())
+  organizationId         BigInt                   @map("organization_id")
+  categoryId             BigInt?                  @map("category_id")
+  name                   String                   @db.VarChar(200)
+  price                  Decimal                  @db.Decimal(12, 2)
+  imageKey               String?                  @map("image_key") @db.VarChar(512)
+  productUrl             String?                  @map("product_url") @db.Text
+  purchaseCountCache     Int                      @default(0) @map("purchase_count_cache")
+  createdByUserId        BigInt?                  @map("created_by_user_id")
+  isActive               Boolean                  @default(true) @map("is_active")
+  createdAt              DateTime                 @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
+  updatedAt              DateTime                 @default(dbgenerated("(now())")) @updatedAt @map("updated_at") @db.DateTime(0)
+  cartItems              CartItem[]
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "products_ibfk_1")
+  category               Category?                @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "products_ibfk_2")
+  users                  User?                    @relation(fields: [createdByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "products_ibfk_3")
+  purchase_order_items   purchase_order_items[]
+  purchase_request_items purchase_request_items[]
+
+  @@index([createdByUserId], map: "created_by_user_id")
+  @@index([organizationId, isActive, createdAt], map: "products_index_22")
+  @@index([categoryId, price], map: "products_index_23")
+  @@index([name], map: "products_index_24")
+  @@index([purchaseCountCache], map: "products_index_25")
+  @@map("products")
+}
+
+model Cart {
+  id             BigInt       @id @default(autoincrement())
+  organizationId BigInt       @map("organization_id")
+  userId         BigInt       @map("user_id")
+  createdAt      DateTime     @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
+  updatedAt      DateTime     @default(dbgenerated("(now())")) @updatedAt @map("updated_at") @db.DateTime(0)
+  items          CartItem[]
+  organizations  Organization @relation(fields: [organizationId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "carts_ibfk_1")
+  users          User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "carts_ibfk_2")
+
+  @@unique([organizationId, userId], map: "carts_index_26")
+  @@index([userId], map: "carts_index_27")
+  @@map("carts")
+}
+
+model CartItem {
+  id        BigInt   @id @default(autoincrement())
+  cartId    BigInt   @map("cart_id")
+  productId BigInt   @map("product_id")
+  quantity  Int
+  createdAt DateTime @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cart_items_ibfk_1")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cart_items_ibfk_2")
+
+  @@unique([cartId, productId], map: "cart_items_index_28")
+  @@index([productId], map: "cart_items_index_29")
+  @@map("cart_items")
+}
+
+model PurchaseRequest {
+  id                     BigInt                   @id @default(autoincrement())
+  buyerOrganizationId    BigInt                   @map("buyer_organization_id")
+  requesterUserId        BigInt                   @map("requester_user_id")
+  status                 PurchaseRequestStatus    @default(OPEN)
+  requestMessage         String?                  @map("request_message") @db.Text
+  totalAmount            Decimal                  @default(0.00) @map("total_amount") @db.Decimal(14, 2)
+  requestedAt            DateTime                 @default(dbgenerated("(now())")) @map("requested_at") @db.DateTime(0)
+  canceledAt             DateTime?                @map("canceled_at") @db.DateTime(0)
+  updatedAt              DateTime                 @default(dbgenerated("(now())")) @updatedAt @map("updated_at") @db.DateTime(0)
+  expenses               expenses[]
+  purchase_orders        purchase_orders[]
+  purchase_request_items purchase_request_items[]
+  organizations          Organization             @relation(fields: [buyerOrganizationId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_requests_ibfk_1")
+  users                  User                     @relation(fields: [requesterUserId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_requests_ibfk_2")
+
+  @@index([buyerOrganizationId, status, requestedAt], map: "purchase_requests_index_30")
+  @@index([buyerOrganizationId, requesterUserId, requestedAt], map: "purchase_requests_index_31")
+  @@index([buyerOrganizationId, totalAmount, requestedAt], map: "purchase_requests_index_32")
+  @@index([requesterUserId], map: "requester_user_id")
+  @@map("purchase_requests")
+}
+
+model audit_logs {
+  id              BigInt                @id @default(autoincrement())
+  organization_id BigInt?
+  actor_type      audit_logs_actor_type @default(USER)
+  actor_user_id   BigInt?
+  action          String                @db.VarChar(80)
+  target_type     String?               @db.VarChar(80)
+  target_id       BigInt?
+  message         String?               @db.Text
+  metadata        Json?
+  created_at      DateTime              @default(dbgenerated("(now())")) @db.DateTime(0)
+  organizations   Organization?         @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "audit_logs_ibfk_1")
+  users           User?                 @relation(fields: [actor_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "audit_logs_ibfk_2")
+
+  @@index([organization_id, created_at], map: "audit_logs_index_55")
+  @@index([actor_user_id, created_at], map: "audit_logs_index_56")
+  @@index([action, created_at], map: "audit_logs_index_57")
+}
+
+model auth_sessions {
+  id                      BigInt               @id @default(autoincrement())
+  user_id                 BigInt
+  current_organization_id BigInt?
+  refresh_token_hash      String               @unique(map: "auth_sessions_index_14") @db.VarChar(255)
+  status                  auth_sessions_status @default(ACTIVE)
+  created_at              DateTime             @default(dbgenerated("(now())")) @db.DateTime(0)
+  last_seen_at            DateTime?            @db.DateTime(0)
+  expires_at              DateTime             @db.DateTime(0)
+  revoked_at              DateTime?            @db.DateTime(0)
+  ip                      String?              @db.VarChar(45)
+  user_agent              String?              @db.Text
+  users                   User                 @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_sessions_ibfk_1")
+  organizations           Organization?        @relation(fields: [current_organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_sessions_ibfk_2")
+
+  @@index([user_id, status], map: "auth_sessions_index_11")
+  @@index([current_organization_id], map: "auth_sessions_index_12")
+  @@index([user_id, current_organization_id], map: "auth_sessions_index_13")
+  @@index([expires_at], map: "auth_sessions_index_15")
+}
+
+model budget_periods {
+  id                 BigInt       @id @default(autoincrement())
+  organization_id    BigInt
+  year               Int
+  month              Int
+  budget_amount      Decimal      @default(0.00) @db.Decimal(14, 2)
+  created_by_user_id BigInt?
+  created_at         DateTime     @default(dbgenerated("(now())")) @db.DateTime(0)
+  organizations      Organization @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "budget_periods_ibfk_1")
+  users              User?        @relation(fields: [created_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "budget_periods_ibfk_2")
+
+  @@unique([organization_id, year, month], map: "budget_periods_index_54")
+  @@index([created_by_user_id], map: "created_by_user_id")
+}
+
+model budget_reservations {
+  id                    BigInt                     @id @default(autoincrement())
+  buyer_organization_id BigInt
+  purchase_order_id     BigInt                     @unique(map: "purchase_order_id")
+  reserved_amount       Decimal                    @db.Decimal(14, 2)
+  status                budget_reservations_status @default(ACTIVE)
+  created_by_user_id    BigInt?
+  created_at            DateTime                   @default(dbgenerated("(now())")) @db.DateTime(0)
+  released_at           DateTime?                  @db.DateTime(0)
+  consumed_at           DateTime?                  @db.DateTime(0)
+  organizations         Organization               @relation(fields: [buyer_organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "budget_reservations_ibfk_1")
+  purchase_orders       purchase_orders            @relation(fields: [purchase_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "budget_reservations_ibfk_2")
+  users                 User?                      @relation(fields: [created_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "budget_reservations_ibfk_3")
+
+  @@index([buyer_organization_id, status, created_at], map: "budget_reservations_index_49")
+  @@index([buyer_organization_id, created_at], map: "budget_reservations_index_50")
+  @@index([created_by_user_id], map: "created_by_user_id")
+}
+
+model expenses {
+  id                    BigInt          @id @default(autoincrement())
+  buyer_organization_id BigInt
+  purchase_order_id     BigInt          @unique(map: "purchase_order_id")
+  purchase_request_id   BigInt
+  items_amount          Decimal         @default(0.00) @db.Decimal(14, 2)
+  shipping_amount       Decimal         @default(0.00) @db.Decimal(14, 2)
+  amount                Decimal         @db.Decimal(14, 2)
+  expensed_at           DateTime        @default(dbgenerated("(now())")) @db.DateTime(0)
+  recorded_by_user_id   BigInt?
+  note                  String?         @db.Text
+  organizations         Organization    @relation(fields: [buyer_organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "expenses_ibfk_1")
+  purchase_orders       purchase_orders @relation(fields: [purchase_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "expenses_ibfk_2")
+  purchase_requests     PurchaseRequest @relation(fields: [purchase_request_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "expenses_ibfk_3")
+  users                 User?           @relation(fields: [recorded_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "expenses_ibfk_4")
+
+  @@index([buyer_organization_id, expensed_at], map: "expenses_index_51")
+  @@index([buyer_organization_id, purchase_request_id], map: "expenses_index_52")
+  @@index([purchase_order_id], map: "expenses_index_53")
+  @@index([purchase_request_id], map: "purchase_request_id")
+  @@index([recorded_by_user_id], map: "recorded_by_user_id")
+}
+
+model password_reset_tokens {
+  id                   BigInt    @id @default(autoincrement())
+  user_id              BigInt
+  token_hash           String    @unique(map: "password_reset_tokens_index_16") @db.VarChar(255)
+  created_at           DateTime  @default(dbgenerated("(now())")) @db.DateTime(0)
+  expires_at           DateTime  @db.DateTime(0)
+  used_at              DateTime? @db.DateTime(0)
+  requested_ip         String?   @db.VarChar(45)
+  requested_user_agent String?   @db.Text
+  users                User      @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "password_reset_tokens_ibfk_1")
+
+  @@index([user_id, expires_at], map: "password_reset_tokens_index_17")
+  @@index([expires_at], map: "password_reset_tokens_index_18")
+}
+
+model purchase_order_decisions {
+  id                 BigInt                            @id @default(autoincrement())
+  purchase_order_id  BigInt
+  decided_by_user_id BigInt
+  decision           purchase_order_decisions_decision
+  decision_message   String?                           @db.Text
+  decided_at         DateTime                          @default(dbgenerated("(now())")) @db.DateTime(0)
+  purchase_orders    purchase_orders                   @relation(fields: [purchase_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_decisions_ibfk_1")
+  users              User                              @relation(fields: [decided_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_decisions_ibfk_2")
+
+  @@index([purchase_order_id, decided_at], map: "purchase_order_decisions_index_47")
+  @@index([decided_by_user_id, decided_at], map: "purchase_order_decisions_index_48")
+}
+
+model purchase_order_items {
+  id                       BigInt                  @id @default(autoincrement())
+  purchase_order_id        BigInt
+  purchase_request_item_id BigInt?
+  product_id               BigInt?
+  product_name_snapshot    String                  @db.VarChar(200)
+  product_url_snapshot     String?                 @db.Text
+  unit_price_snapshot      Decimal                 @db.Decimal(12, 2)
+  quantity                 Int
+  line_total               Decimal                 @db.Decimal(14, 2)
+  created_at               DateTime                @default(dbgenerated("(now())")) @db.DateTime(0)
+  purchase_orders          purchase_orders         @relation(fields: [purchase_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_items_ibfk_1")
+  purchase_request_items   purchase_request_items? @relation(fields: [purchase_request_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_items_ibfk_2")
+  products                 Product?                @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_order_items_ibfk_3")
+
+  @@unique([purchase_order_id, purchase_request_item_id], map: "purchase_order_items_index_45")
+  @@index([product_id], map: "product_id")
+  @@index([purchase_order_id], map: "purchase_order_items_index_43")
+  @@index([purchase_request_item_id], map: "purchase_order_items_index_44")
+  @@index([purchase_order_id, product_id], map: "purchase_order_items_index_46")
+}
+
+model purchase_orders {
+  id                                                                  BigInt                     @id @default(autoincrement())
+  purchase_request_id                                                 BigInt
+  buyer_organization_id                                               BigInt
+  seller_organization_id                                              BigInt
+  status                                                              purchase_orders_status     @default(PENDING_SELLER_APPROVAL)
+  platform                                                            purchase_orders_platform   @default(OTHER)
+  external_order_no                                                   String?                    @db.VarChar(100)
+  order_url                                                           String?                    @db.Text
+  items_amount                                                        Decimal                    @default(0.00) @db.Decimal(14, 2)
+  shipping_fee                                                        Decimal                    @default(0.00) @db.Decimal(12, 2)
+  approved_at                                                         DateTime?                  @db.DateTime(0)
+  rejected_at                                                         DateTime?                  @db.DateTime(0)
+  ordered_at                                                          DateTime?                  @db.DateTime(0)
+  purchased_by_user_id                                                BigInt?
+  shipping_status                                                     String?                    @db.VarChar(40)
+  delivered_at                                                        DateTime?                  @db.DateTime(0)
+  note                                                                String?                    @db.Text
+  created_at                                                          DateTime                   @default(dbgenerated("(now())")) @db.DateTime(0)
+  updated_at                                                          DateTime                   @default(dbgenerated("(now())")) @db.DateTime(0)
+  budget_reservations                                                 budget_reservations?
+  expenses                                                            expenses?
+  purchase_order_decisions                                            purchase_order_decisions[]
+  purchase_order_items                                                purchase_order_items[]
+  purchase_requests                                                   PurchaseRequest            @relation(fields: [purchase_request_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_orders_ibfk_1")
+  organizations_purchase_orders_buyer_organization_idToorganizations  Organization               @relation("purchase_orders_buyer_organization_idToorganizations", fields: [buyer_organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_orders_ibfk_2")
+  organizations_purchase_orders_seller_organization_idToorganizations Organization               @relation("purchase_orders_seller_organization_idToorganizations", fields: [seller_organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_orders_ibfk_3")
+  users                                                               User?                      @relation(fields: [purchased_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_orders_ibfk_4")
+
+  @@unique([purchase_request_id, seller_organization_id], map: "purchase_orders_index_37")
+  @@unique([platform, external_order_no], map: "purchase_orders_index_42")
+  @@index([buyer_organization_id, status, created_at], map: "purchase_orders_index_38")
+  @@index([seller_organization_id, status, created_at], map: "purchase_orders_index_39")
+  @@index([buyer_organization_id, ordered_at], map: "purchase_orders_index_40")
+  @@index([seller_organization_id, ordered_at], map: "purchase_orders_index_41")
+  @@index([purchased_by_user_id], map: "purchased_by_user_id")
+}
+
+model purchase_request_items {
+  id                     BigInt                 @id @default(autoincrement())
+  purchase_request_id    BigInt
+  seller_organization_id BigInt
+  product_id             BigInt?
+  product_name_snapshot  String                 @db.VarChar(200)
+  product_url_snapshot   String?                @db.Text
+  unit_price_snapshot    Decimal                @db.Decimal(12, 2)
+  quantity               Int
+  line_total             Decimal                @db.Decimal(14, 2)
+  created_at             DateTime               @default(dbgenerated("(now())")) @db.DateTime(0)
+  purchase_order_items   purchase_order_items[]
+  purchase_requests      PurchaseRequest        @relation(fields: [purchase_request_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_request_items_ibfk_1")
+  organizations          Organization           @relation(fields: [seller_organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_request_items_ibfk_2")
+  products               Product?               @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "purchase_request_items_ibfk_3")
+
+  @@index([purchase_request_id], map: "purchase_request_items_index_33")
+  @@index([seller_organization_id], map: "purchase_request_items_index_34")
+  @@index([product_id], map: "purchase_request_items_index_35")
+  @@index([purchase_request_id, seller_organization_id], map: "purchase_request_items_index_36")
+}
+
+enum OrgRole {
+  MEMBER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum OrgType {
+  PERSONAL
+  BUSINESS
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum PurchaseRequestStatus {
+  OPEN
+  PARTIALLY_APPROVED
+  READY_TO_PURCHASE
+  REJECTED
+  CANCELED
+  PURCHASED
+}
+
+enum audit_logs_actor_type {
+  USER
+  SYSTEM
+}
+
+enum purchase_order_decisions_decision {
+  APPROVED
+  REJECTED
+}
+
+enum auth_sessions_status {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum budget_reservations_status {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
+enum purchase_orders_status {
+  PENDING_SELLER_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELED
+  PURCHASED
+}
+
+enum purchase_orders_platform {
+  COUPANG
+  NAVER
+  MARKET_KURLY
+  SSG
+  OTHER
+}
