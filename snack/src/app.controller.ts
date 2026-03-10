@@ -5,7 +5,7 @@ export class AppController {
   @Get()
   root() {
     return {
-      message: 'Snack API is running',
+      message: 'SNACK backend is running!',
     };
   }
 }
