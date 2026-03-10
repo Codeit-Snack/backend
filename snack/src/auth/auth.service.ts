@@ -1,44 +1,117 @@
-import { Injectable, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { SignupDto } from './dto/signup.dto';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { OrgRole, OrgType, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { PrismaService } from '../prisma/prisma.service';
+import { SignUpDto } from './dto/signup.dto';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  async signup(dto: SignupDto) {
-    const { email, password, displayName } = dto;
+  async signUp(dto: SignUpDto) {
+    const email = dto.email.trim().toLowerCase();
+    const displayName = dto.displayName.trim();
+    const organizationName = dto.organizationName.trim();
+    const businessNumber = dto.businessNumber?.trim() ?? null;
+    const bcryptRounds = Number(
+      this.configService.get<string>('BCRYPT_ROUNDS', '12'),
+    );
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('Email already exists');
+    if (dto.orgType === OrgType.BUSINESS && !businessNumber) {
+      throw new BadRequestException(
+        'BUSINESS 조직은 businessNumber가 필요합니다.',
+      );
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    if (dto.orgType === OrgType.PERSONAL && businessNumber) {
+      throw new BadRequestException(
+        'PERSONAL 조직은 businessNumber를 보낼 수 없습니다.',
+      );
+    }
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash: hashedPassword,
-        profile: {
-          create: {
-            displayName,
+    const passwordHash = await bcrypt.hash(dto.password, bcryptRounds);
+
+    try {
+      const organization = await this.prisma.organization.create({
+        data: {
+          name: organizationName,
+          orgType: dto.orgType,
+          businessNumber:
+            dto.orgType === OrgType.BUSINESS ? businessNumber : null,
+          members: {
+            create: {
+              role: OrgRole.SUPER_ADMIN,
+              isActive: true,
+              user: {
+                create: {
+                  email,
+                  passwordHash,
+                  profile: {
+                    create: {
+                      displayName,
+                    },
+                  },
+                },
+              },
+            },
           },
         },
-      },
-      include: {
-        profile: true,
-      },
-    });
+        include: {
+          members: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
-    return {
-      id: user.id,
-      email: user.email,
-      displayName: user.profile?.displayName ?? null,
-    };
+      const membership = organization.members[0];
+      const user = membership.user;
+
+      return {
+        message: '회원가입이 완료되었습니다.',
+        user: {
+          id: user.id.toString(),
+          email: user.email,
+          displayName: user.profile?.displayName ?? null,
+        },
+        organization: {
+          id: organization.id.toString(),
+          name: organization.name,
+          orgType: organization.orgType,
+          businessNumber: organization.businessNumber,
+        },
+        membership: {
+          id: membership.id.toString(),
+          role: membership.role,
+        },
+      };
+    } catch (error) {
+      console.error('signup error:', error);
+
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('이미 사용 중인 이메일입니다.');
+      }
+
+      throw new InternalServerErrorException(
+        '회원가입 처리 중 오류가 발생했습니다.',
+      );
+    }
   }
 }
