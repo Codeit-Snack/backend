@@ -6,6 +6,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { AppException } from '../exceptions/app.exception';
+import {
+  ErrorCode,
+  HTTP_STATUS_TO_ERROR_CODE,
+} from '../enums/error-code.enum';
+import { ErrorResponse } from '../types/error-response.type';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -16,19 +22,32 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    const isAppException = exception instanceof AppException;
     const isHttpException = exception instanceof HttpException;
 
     const status: number = isHttpException
       ? exception.getStatus()
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const isInternalError = status === Number(HttpStatus.INTERNAL_SERVER_ERROR);
+    const isInternalError = status === HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const exceptionResponse = isHttpException ? exception.getResponse() : null;
-
+    let errorCode: ErrorCode;
     let message: string | string[] = 'Internal server error';
 
-    if (isHttpException) {
+    if (isAppException) {
+      errorCode = exception.errorCode;
+      const exceptionResponse = exception.getResponse() as {
+        message?: string | string[];
+      };
+      message = exceptionResponse?.message ?? errorCode;
+    } else if (isHttpException) {
+      errorCode =
+        HTTP_STATUS_TO_ERROR_CODE[status] ??
+        (status === HttpStatus.BAD_REQUEST
+          ? ErrorCode.VALIDATION_FAILED
+          : ErrorCode.UNKNOWN_ERROR);
+
+      const exceptionResponse = exception.getResponse();
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       } else if (
@@ -38,17 +57,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
       ) {
         message = (exceptionResponse as { message: string | string[] }).message;
       }
+    } else {
+      errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
     }
 
-    response.status(status).json({
+    const errorResponse: ErrorResponse = {
       success: false,
       statusCode: status,
+      errorCode,
       path: request.url,
       timestamp: new Date().toISOString(),
       message:
         isInternalError && this.nodeEnv === 'production'
           ? 'Internal server error'
           : message,
-    });
+    };
+
+    response.status(status).json(errorResponse);
   }
 }

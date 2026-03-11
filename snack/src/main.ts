@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ErrorInterceptor } from './common/interceptors/error.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 async function bootstrap() {
@@ -63,7 +64,10 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(new HttpExceptionFilter(nodeEnv));
-  app.useGlobalInterceptors(new ResponseInterceptor());
+  app.useGlobalInterceptors(
+    new ErrorInterceptor(nodeEnv),
+    new ResponseInterceptor(),
+  );
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SNACK API')
