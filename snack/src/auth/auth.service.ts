@@ -10,6 +10,7 @@ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { OrgRole, OrgType, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../database/prisma.service';
+import { CurrentUserPayload } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { SignUpDto } from './dto/signup.dto';
 
@@ -235,6 +236,55 @@ export class AuthService {
       tokens: {
         accessToken,
         refreshToken,
+      },
+    };
+  }
+
+  async getMe(currentUser: CurrentUserPayload) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: BigInt(currentUser.sub) },
+      include: {
+        profile: true,
+        memberships: {
+          where: {
+            organizationId: BigInt(currentUser.organizationId),
+            isActive: true,
+          },
+          include: {
+            organization: true,
+          },
+          orderBy: {
+            id: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
+    }
+
+    const membership = user.memberships[0];
+
+    if (!membership) {
+      throw new UnauthorizedException('활성 조직 멤버십이 없습니다.');
+    }
+
+    return {
+      message: '내 정보 조회에 성공했습니다.',
+      user: {
+        id: user.id.toString(),
+        email: user.email,
+        displayName: user.profile?.displayName ?? null,
+      },
+      organization: {
+        id: membership.organization.id.toString(),
+        name: membership.organization.name,
+        orgType: membership.organization.orgType,
+      },
+      membership: {
+        id: membership.id.toString(),
+        role: membership.role,
       },
     };
   }
