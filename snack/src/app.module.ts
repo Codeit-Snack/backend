@@ -6,6 +6,8 @@ import { PrismaModule } from './database/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     PrismaModule,
     HealthModule,
     AuthModule,
+    OrganizationsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
