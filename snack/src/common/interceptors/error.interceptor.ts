@@ -84,7 +84,9 @@ export class ErrorInterceptor implements NestInterceptor {
               : message,
         };
 
-        response.status(status).json(errorResponse);
+        if (!response.headersSent) {
+          response.status(status).json(errorResponse);
+        }
 
         return EMPTY;
       }),
