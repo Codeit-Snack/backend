@@ -10,6 +10,7 @@ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { OrgRole, OrgType, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../database/prisma.service';
+import { InvitationService } from '../invitation/invitation.service';
 import { CurrentUserPayload } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { SignUpDto } from './dto/signup.dto';
@@ -20,6 +21,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly invitationService: InvitationService,
   ) {}
 
   async signUp(dto: SignUpDto) {
@@ -217,8 +219,27 @@ export class AuthService {
       },
     });
 
+    let invitationAccepted = false;
+    if (dto.invitationToken) {
+      try {
+        const currentUser: CurrentUserPayload = {
+          sub: user.id.toString(),
+          email: user.email,
+          organizationId: primaryMembership.organizationId.toString(),
+          role: primaryMembership.role,
+        };
+        await this.invitationService.accept(dto.invitationToken, currentUser);
+        invitationAccepted = true;
+      } catch {
+        // 초대 수락 실패 시 무시 (토큰 만료 등)
+      }
+    }
+
     return {
-      message: '로그인이 완료되었습니다.',
+      message: invitationAccepted
+        ? '로그인 및 초대 수락이 완료되었습니다.'
+        : '로그인이 완료되었습니다.',
+      invitationAccepted,
       user: {
         id: user.id.toString(),
         email: user.email,
