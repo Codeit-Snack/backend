@@ -1,8 +1,9 @@
-import { Role } from '../enums/role.enum';
+import { OrgRole } from '@prisma/client';
 
 export type JwtPayload = {
-  sub: number;
+  sub: string;
   email: string;
-  role: Role;
-  organizationId?: number;
+  organizationId: string;
+  role: OrgRole;
+  sessionId: string;
 };
