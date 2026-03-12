@@ -14,6 +14,7 @@ import type { CurrentUserPayload } from '../auth/decorators/current-user.decorat
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { UpdateOrganizationMemberRoleDto } from './dto/update-organization-member-role.dto';
 
 @ApiTags('Organizations')
 @ApiBearerAuth()
@@ -51,5 +52,31 @@ export class OrganizationsController {
   @ApiOperation({ summary: '현재 조직 멤버 목록 조회' })
   getMembers(@CurrentUser() currentUser: CurrentUserPayload) {
     return this.organizationsService.getMembers(currentUser);
+  }
+
+  @Patch('members/:memberId/role')
+  @ApiOperation({ summary: '조직 멤버 권한 변경' })
+  updateMemberRole(
+    @CurrentUser() currentUser: CurrentUserPayload,
+    @Param('memberId') memberId: string,
+    @Body() dto: UpdateOrganizationMemberRoleDto,
+  ) {
+    return this.organizationsService.updateMemberRole(
+      currentUser,
+      BigInt(memberId),
+      dto,
+    );
+  }
+
+  @Patch('members/:memberId/deactivate')
+  @ApiOperation({ summary: '조직 멤버 비활성화' })
+  deactivateMember(
+    @CurrentUser() currentUser: CurrentUserPayload,
+    @Param('memberId') memberId: string,
+  ) {
+    return this.organizationsService.deactivateMember(
+      currentUser,
+      BigInt(memberId),
+    );
   }
 }

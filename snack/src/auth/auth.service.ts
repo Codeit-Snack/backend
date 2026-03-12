@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { OrgRole, OrgType, Prisma, auth_sessions_status } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { hashPassword, verifyPassword } from '../common/utils/password.util';
 import { PrismaService } from '../database/prisma.service';
 import type { CurrentUserPayload } from './decorators/current-user.decorator';
@@ -230,7 +230,10 @@ export class AuthService {
     const refreshToken = await this.signRefreshToken(refreshPayload);
 
     // DB에는 refresh token 원문이 아니라 hash만 저장
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    // =========================================================
+    // 수정 요청 (2026.03.12 : bcrypt.compare() 직접 사용 => hashPassword() 유틸로 변경)
+    // =========================================================
+    const refreshTokenHash = await hashPassword(refreshToken, 10);
 
     await this.prisma.auth_sessions.update({
       where: { id: session.id },
@@ -321,7 +324,7 @@ export class AuthService {
       throw new UnauthorizedException('유효한 세션이 아닙니다.');
     }
 
-    const isRefreshTokenValid = await bcrypt.compare(
+    const isRefreshTokenValid = await verifyPassword(
       dto.refreshToken,
       session.refresh_token_hash,
     );
@@ -370,7 +373,11 @@ export class AuthService {
 
     // refresh token rotation:
     // 새 refresh token hash로 기존 값을 교체
-    const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
+    // =========================================================
+    // 수정 요청 (2026.03.12 : bcrypt.hash() 직접 사용 => hashPassword() 유틸로 변경)
+    // =========================================================
+    const newRefreshTokenHash = await hashPassword(newRefreshToken, 10);
+
     const refreshExpiresIn = this.configService.getOrThrow<string>(
       'JWT_REFRESH_EXPIRES_IN',
     );
@@ -593,5 +600,62 @@ export class AuthService {
     // 예외적인 형식이면 기본 7일로 처리
     now.setDate(now.getDate() + 7);
     return now;
+  }
+
+  async changePassword(userId: bigint, dto: ChangePasswordDto) {
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException(
+        '새 비밀번호는 현재 비밀번호와 달라야 합니다.',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        passwordHash: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
+    }
+
+    const isMatched = await verifyPassword(
+      dto.currentPassword,
+      user.passwordHash,
+    );
+
+    if (!isMatched) {
+      throw new UnauthorizedException('현재 비밀번호가 올바르지 않습니다.');
+    }
+
+    const bcryptRounds = Number(
+      this.configService.get<string>('BCRYPT_ROUNDS', '12'),
+    );
+
+    const newPasswordHash = await hashPassword(dto.newPassword, bcryptRounds);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: newPasswordHash,
+      },
+    });
+
+    await this.prisma.auth_sessions.updateMany({
+      where: {
+        user_id: userId,
+        status: auth_sessions_status.ACTIVE,
+      },
+      data: {
+        status: auth_sessions_status.REVOKED,
+        revoked_at: new Date(),
+      },
+    });
+
+    return {
+      message: '비밀번호가 변경되었습니다.',
+    };
   }
 }

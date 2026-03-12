@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
     HealthModule,
     AuthModule,
     OrganizationsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
