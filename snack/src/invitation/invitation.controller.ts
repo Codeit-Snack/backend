@@ -7,16 +7,23 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { InvitationService } from './invitation.service';
 import { InviteDto } from './dto/invite.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { InviteSignUpDto } from './dto/invite-signup.dto';
+import { DeclineInvitationDto } from './dto/decline-invitation.dto';
+import { CancelInvitationDto } from './dto/cancel-invitation.dto';
 
-@ApiTags('invitations')
+@ApiTags('Invitations')
 @Controller('invitations')
 export class InvitationController {
   constructor(private readonly invitationService: InvitationService) {}
@@ -27,6 +34,7 @@ export class InvitationController {
     description:
       '토큰 유효성 검사 및 이메일, 팀명, 회원가입 필요 여부 반환. needsSignUp=true면 회원가입, false면 로그인 유도',
   })
+  @ApiQuery({ name: 'token', required: true, description: '초대 링크의 토큰' })
   getInvitationInfo(@Query('token') token: string) {
     return this.invitationService.getInvitationInfo(token);
   }
@@ -43,7 +51,7 @@ export class InvitationController {
 
   @Post('organizations/:organizationId/invite')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: '이메일로 조직 멤버 초대' })
   async invite(
     @Param('organizationId') organizationId: string,
@@ -59,12 +67,41 @@ export class InvitationController {
 
   @Post('accept')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: '초대 수락 (이메일 링크 클릭 후 로그인 필요)' })
   async accept(
     @Body() dto: AcceptInvitationDto,
     @CurrentUser() currentUser: CurrentUserPayload,
   ) {
     return this.invitationService.accept(dto.token, currentUser);
+  }
+
+  @Post('decline')
+  @ApiOperation({
+    summary: '초대 거절',
+    description:
+      '초대 대상이 수락을 거절. 로그인 불필요, 이메일 링크의 토큰만 필요',
+  })
+  async decline(@Body() dto: DeclineInvitationDto) {
+    return this.invitationService.decline(dto.token);
+  }
+
+  @Post('organizations/:organizationId/cancel')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: '초대 취소',
+    description: '초대자가 보낸 초대를 취소. 조직 관리자만 가능',
+  })
+  async cancel(
+    @Param('organizationId') organizationId: string,
+    @Body() dto: CancelInvitationDto,
+    @CurrentUser() currentUser: CurrentUserPayload,
+  ) {
+    return this.invitationService.cancel(
+      BigInt(organizationId),
+      dto.email,
+      currentUser,
+    );
   }
 }

@@ -10,7 +10,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('Auth')
-@Controller('api/auth')
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -34,7 +34,7 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: '로그아웃' })
   logout(@CurrentUser() currentUser: CurrentUserPayload) {
     return this.authService.logout(currentUser);
@@ -42,7 +42,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: '내 정보 조회' })
   getMe(@CurrentUser() currentUser: CurrentUserPayload) {
     return this.authService.getMe(currentUser);
@@ -50,7 +50,7 @@ export class AuthController {
 
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('access-token')
   @ApiOperation({ summary: '비밀번호 변경' })
   changePassword(
     @CurrentUser() user: CurrentUserPayload,

@@ -259,6 +259,7 @@ export class AuthService {
           email: user.email,
           organizationId: primaryMembership.organizationId.toString(),
           role: primaryMembership.role,
+          sessionId: session.id.toString(),
         };
         await this.invitationService.accept(dto.invitationToken, currentUser);
         invitationAccepted = true;
