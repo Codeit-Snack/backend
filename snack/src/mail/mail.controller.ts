@@ -3,7 +3,7 @@ import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MailService } from './mail.service';
 import { SendTestMailDto } from './dto/send-test-mail.dto';
 
-@ApiTags('mail')
+@ApiTags('Mail')
 @Controller('mail')
 export class MailController {
   constructor(private readonly mail: MailService) {}

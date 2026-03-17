@@ -230,6 +230,103 @@ export class InvitationService {
     };
   }
 
+  /** 초대 거절 (초대 대상이 수락을 거절) - 토큰만 있으면 됨, 로그인 불필요 */
+  async decline(token: string) {
+    const redisKey = `${INVITATION_TOKEN_PREFIX}${token}`;
+    const redisData = await this.redis.get(redisKey);
+
+    if (!redisData) {
+      throw new AppException(
+        ErrorCode.TOKEN_EXPIRED,
+        '초대 링크가 만료되었거나 유효하지 않습니다.',
+      );
+    }
+
+    const { invitationId } = JSON.parse(redisData);
+
+    const invitation = await this.prisma.invitation.findUnique({
+      where: { id: BigInt(invitationId) },
+    });
+
+    if (
+      !invitation ||
+      invitation.status !== InvitationStatus.PENDING ||
+      invitation.expiresAt < new Date()
+    ) {
+      await this.redis.del(redisKey);
+      throw new AppException(
+        ErrorCode.TOKEN_EXPIRED,
+        '초대가 만료되었거나 이미 처리되었습니다.',
+      );
+    }
+
+    await this.prisma.invitation.update({
+      where: { id: BigInt(invitationId) },
+      data: {
+        status: InvitationStatus.REVOKED,
+        revokedAt: new Date(),
+      },
+    });
+
+    await this.redis.del(redisKey);
+
+    return {
+      message: '초대를 거절했습니다.',
+    };
+  }
+
+  /** 초대 취소 (초대자가 보낸 초대를 취소) - 조직 관리자만 가능 */
+  async cancel(organizationId: bigint, email: string, currentUser: CurrentUserPayload) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      include: { members: true },
+    });
+
+    if (!org) {
+      throw new AppException(ErrorCode.NOT_FOUND, '조직을 찾을 수 없습니다.');
+    }
+
+    const isAdmin = org.members.some(
+      (m) =>
+        m.userId.toString() === currentUser.sub &&
+        (m.role === OrgRole.ADMIN || m.role === OrgRole.SUPER_ADMIN),
+    );
+    if (!isAdmin) {
+      throw new AppException(ErrorCode.FORBIDDEN, '초대 취소 권한이 없습니다.');
+    }
+
+    const invitation = await this.prisma.invitation.findFirst({
+      where: {
+        organizationId,
+        email: normalizedEmail,
+        status: InvitationStatus.PENDING,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!invitation) {
+      throw new AppException(
+        ErrorCode.NOT_FOUND,
+        '취소할 대기 중인 초대가 없습니다.',
+      );
+    }
+
+    await this.prisma.invitation.update({
+      where: { id: invitation.id },
+      data: {
+        status: InvitationStatus.REVOKED,
+        revokedAt: new Date(),
+      },
+    });
+
+    return {
+      message: '초대를 취소했습니다.',
+      email: normalizedEmail,
+    };
+  }
+
   async getInvitationInfo(token: string) {
     const redisKey = `${INVITATION_TOKEN_PREFIX}${token}`;
     const redisData = await this.redis.get(redisKey);
