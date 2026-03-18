@@ -21,7 +21,8 @@ export class PrismaService
 {
   constructor(private readonly configService: ConfigService) {
     const databaseUrl = configService.getOrThrow<string>('DATABASE_URL');
-    const { host, port, user, password, database } = parseDatabaseUrl(databaseUrl);
+    const { host, port, user, password, database } =
+      parseDatabaseUrl(databaseUrl);
 
     const adapter = new PrismaMariaDb({
       host,

@@ -10,20 +10,14 @@ import { Observable, EMPTY } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { Request, Response } from 'express';
 import { AppException } from '../exceptions/app.exception';
-import {
-  ErrorCode,
-  HTTP_STATUS_TO_ERROR_CODE,
-} from '../enums/error-code.enum';
+import { ErrorCode, HTTP_STATUS_TO_ERROR_CODE } from '../enums/error-code.enum';
 import { ErrorResponse } from '../types/error-response.type';
 
 @Injectable()
 export class ErrorInterceptor implements NestInterceptor {
   constructor(private readonly nodeEnv: string) {}
 
-  intercept(
-    context: ExecutionContext,
-    next: CallHandler,
-  ): Observable<unknown> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const ctx = context.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
@@ -37,8 +31,7 @@ export class ErrorInterceptor implements NestInterceptor {
           ? exception.getStatus()
           : HttpStatus.INTERNAL_SERVER_ERROR;
 
-        const isInternalError =
-          status === HttpStatus.INTERNAL_SERVER_ERROR;
+        const isInternalError = status === HttpStatus.INTERNAL_SERVER_ERROR;
 
         let errorCode: ErrorCode;
         let message: string | string[] = 'Internal server error';
@@ -64,9 +57,8 @@ export class ErrorInterceptor implements NestInterceptor {
             exceptionResponse !== null &&
             'message' in exceptionResponse
           ) {
-            message = (
-              exceptionResponse as { message: string | string[] }
-            ).message;
+            message = (exceptionResponse as { message: string | string[] })
+              .message;
           }
         } else {
           errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
