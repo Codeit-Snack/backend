@@ -22,6 +22,7 @@ import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { InviteSignUpDto } from './dto/invite-signup.dto';
 import { DeclineInvitationDto } from './dto/decline-invitation.dto';
 import { CancelInvitationDto } from './dto/cancel-invitation.dto';
+import { ResendInvitationDto } from './dto/resend-invitation.dto';
 
 @ApiTags('Invitations')
 @Controller('invitations')
@@ -84,6 +85,26 @@ export class InvitationController {
   })
   async decline(@Body() dto: DeclineInvitationDto) {
     return this.invitationService.decline(dto.token);
+  }
+
+  @Post('organizations/:organizationId/resend')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: '초대 이메일 재전송',
+    description:
+      '대기 중인 초대에 대해 새 링크를 발급해 메일을 다시 보냅니다. 조직 관리자·최고 관리자만 가능',
+  })
+  async resend(
+    @Param('organizationId') organizationId: string,
+    @Body() dto: ResendInvitationDto,
+    @CurrentUser() currentUser: CurrentUserPayload,
+  ) {
+    return this.invitationService.resend(
+      BigInt(organizationId),
+      dto.email,
+      currentUser,
+    );
   }
 
   @Post('organizations/:organizationId/cancel')

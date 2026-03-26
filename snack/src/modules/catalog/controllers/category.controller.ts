@@ -17,8 +17,8 @@ import { UpdateCategoryDto } from '../dto/update-category.dto';
 import { CategoryListQueryDto } from '../dto/category-list-query.dto';
 import { CategoryResponseDto } from '../dto/category-response.dto';
 
-@ApiTags('Catalog - Category')
-@Controller('catalog/categories')
+@ApiTags('Categories')
+@Controller('categories')
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
