@@ -12,7 +12,13 @@ export const OrganizationId = createParamDecorator(
     const request = ctx.switchToHttp().getRequest();
     const raw = request.organizationId ?? request.user?.organizationId;
     const n = Number(raw);
-    if (raw === undefined || raw === null || raw === '' || Number.isNaN(n) || n < 1) {
+    if (
+      raw === undefined ||
+      raw === null ||
+      raw === '' ||
+      Number.isNaN(n) ||
+      n < 1
+    ) {
       throw new UnauthorizedException(
         '조직 컨텍스트가 없습니다. 로그인 및 조직 선택 후 다시 시도해 주세요.',
       );
@@ -29,7 +35,13 @@ export const UserId = createParamDecorator(
     const request = ctx.switchToHttp().getRequest();
     const raw = request.userId ?? request.user?.sub;
     const n = Number(raw);
-    if (raw === undefined || raw === null || raw === '' || Number.isNaN(n) || n < 1) {
+    if (
+      raw === undefined ||
+      raw === null ||
+      raw === '' ||
+      Number.isNaN(n) ||
+      n < 1
+    ) {
       throw new UnauthorizedException(
         '사용자 컨텍스트가 없습니다. 로그인 후 다시 시도해 주세요.',
       );

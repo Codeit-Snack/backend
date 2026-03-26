@@ -9,8 +9,10 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CartService } from '../services/cart.service';
 import { AddCartItemDto } from '../dto/add-cart-item.dto';
 import { UpdateCartItemQuantityDto } from '../dto/update-cart-item-quantity.dto';
@@ -19,6 +21,8 @@ import { OrganizationId } from '../../catalog/decorators/catalog-context.decorat
 import { UserId } from '../../catalog/decorators/catalog-context.decorator';
 
 @ApiTags('Cart')
+@ApiBearerAuth('access-token')
+@UseGuards(JwtAuthGuard)
 @Controller('cart')
 export class CartController {
   constructor(private readonly cartService: CartService) {}
