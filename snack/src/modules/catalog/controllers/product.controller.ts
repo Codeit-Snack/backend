@@ -3,8 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -21,18 +19,14 @@ import { ProductResponseDto } from '../dto/product-response.dto';
 import { OrganizationId } from '../decorators/catalog-context.decorator';
 import { UserId } from '../decorators/catalog-context.decorator';
 
-@ApiTags('Products')
-@Controller('products')
+@ApiTags('Catalog - Product')
+@Controller('catalog/products')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Post()
   @ApiOperation({ summary: '상품 등록 (organizationId/userId 주입)' })
-  @ApiResponse({
-    status: 201,
-    description: '등록됨',
-    type: ProductResponseDto,
-  })
+  @ApiResponse({ status: 201, description: '등록됨', type: ProductResponseDto })
   @ApiResponse({ status: 400, description: '검증 실패' })
   @ApiResponse({ status: 404, description: '카테고리 없음' })
   create(
@@ -57,11 +51,7 @@ export class ProductController {
 
   @Get(':id')
   @ApiOperation({ summary: '상품 상세 조회 (category 포함)' })
-  @ApiResponse({
-    status: 200,
-    description: '상세',
-    type: ProductResponseDto,
-  })
+  @ApiResponse({ status: 200, description: '상세', type: ProductResponseDto })
   @ApiResponse({ status: 404, description: '없음' })
   async findOne(
     @OrganizationId() organizationId: number,
@@ -76,11 +66,7 @@ export class ProductController {
 
   @Patch(':id')
   @ApiOperation({ summary: '상품 수정 (organizationId 범위 내)' })
-  @ApiResponse({
-    status: 200,
-    description: '수정됨',
-    type: ProductResponseDto,
-  })
+  @ApiResponse({ status: 200, description: '수정됨', type: ProductResponseDto })
   @ApiResponse({ status: 404, description: '상품 없음' })
   update(
     @OrganizationId() organizationId: number,
@@ -91,7 +77,6 @@ export class ProductController {
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: '상품 삭제 (soft delete: is_active=false)' })
   @ApiResponse({ status: 204, description: '삭제됨' })
   @ApiResponse({ status: 404, description: '상품 없음' })

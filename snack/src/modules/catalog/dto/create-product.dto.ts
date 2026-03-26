@@ -10,7 +10,7 @@ import {
   Min,
 } from 'class-validator';
 
-/** organizationId는 컨텍스트에서 주입 */
+/** organizationId는 컨텍스트에서 주입되므로 DTO에 포함하지 않음 */
 export class CreateProductDto {
   @ApiPropertyOptional({
     description: '카테고리 ID (미지정 시 null)',

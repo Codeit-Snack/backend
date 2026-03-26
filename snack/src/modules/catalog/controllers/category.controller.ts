@@ -3,8 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   NotFoundException,
   Param,
   ParseIntPipe,
@@ -19,8 +17,8 @@ import { UpdateCategoryDto } from '../dto/update-category.dto';
 import { CategoryListQueryDto } from '../dto/category-list-query.dto';
 import { CategoryResponseDto } from '../dto/category-response.dto';
 
-@ApiTags('Categories')
-@Controller('categories')
+@ApiTags('Catalog - Category')
+@Controller('catalog/categories')
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
@@ -38,7 +36,7 @@ export class CategoryController {
   }
 
   @Get()
-  @ApiOperation({ summary: '카테고리 목록 조회 (parentId 필터)' })
+  @ApiOperation({ summary: '카테고리 목록 조회 (parentId 필터 지원)' })
   @ApiResponse({
     status: 200,
     description: '목록',
@@ -50,11 +48,7 @@ export class CategoryController {
 
   @Get(':id')
   @ApiOperation({ summary: '카테고리 단건 조회' })
-  @ApiResponse({
-    status: 200,
-    description: '단건',
-    type: CategoryResponseDto,
-  })
+  @ApiResponse({ status: 200, description: '단건', type: CategoryResponseDto })
   @ApiResponse({ status: 404, description: '없음' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const one = await this.categoryService.findOne(id);
@@ -80,7 +74,6 @@ export class CategoryController {
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: '카테고리 삭제 (하위/연결 상품 있으면 불가)' })
   @ApiResponse({ status: 204, description: '삭제됨' })
   @ApiResponse({ status: 404, description: '카테고리 없음' })

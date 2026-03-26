@@ -8,9 +8,12 @@ import {
   Min,
 } from 'class-validator';
 
+/**
+ * update 시: undefined = 필드 생략(변경 없음), null = 명시적 null 설정(예: parentId 해제)
+ */
 export class UpdateCategoryDto {
   @ApiPropertyOptional({
-    description: '부모 카테고리 ID (null이면 최상위)',
+    description: '부모 카테고리 ID (null이면 최상위로 이동)',
     nullable: true,
   })
   @IsOptional()

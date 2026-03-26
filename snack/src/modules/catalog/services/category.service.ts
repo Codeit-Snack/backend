@@ -11,6 +11,7 @@ import { CategoryResponseDto } from '../dto/category-response.dto';
 export class CategoryService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** list 조회용: select만, relation 미포함 */
   private toCategoryResponse(row: {
     id: bigint;
     parentId: bigint | null;
@@ -60,6 +61,7 @@ export class CategoryService {
     } else if (query.parentId === null) {
       where.parentId = null;
     }
+    // parentId 미전달 시: 전체 조회
 
     const list = await this.prisma.category.findMany({
       where,

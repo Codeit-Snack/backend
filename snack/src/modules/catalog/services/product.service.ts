@@ -35,21 +35,7 @@ type ProductRow = {
 export class ProductService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private readonly listSelect = {
-    id: true,
-    organizationId: true,
-    categoryId: true,
-    name: true,
-    price: true,
-    imageKey: true,
-    productUrl: true,
-    purchaseCountCache: true,
-    createdByUserId: true,
-    isActive: true,
-    createdAt: true,
-    updatedAt: true,
-  } as const;
-
+  /** Decimal 직렬화: price를 문자열로 변환 */
   private toProductResponse(row: ProductRow): ProductResponseDto {
     const dto: ProductResponseDto = {
       id: Number(row.id),
@@ -112,6 +98,22 @@ export class ProductService {
     return this.toProductResponse(created);
   }
 
+  private readonly listSelect = {
+    id: true,
+    organizationId: true,
+    categoryId: true,
+    name: true,
+    price: true,
+    imageKey: true,
+    productUrl: true,
+    purchaseCountCache: true,
+    createdByUserId: true,
+    isActive: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
+
+  /** list 조회: select 최소 필드, category 미포함 */
   async findAll(
     organizationId: number,
     query: ProductListQueryDto,
@@ -155,6 +157,7 @@ export class ProductService {
     };
   }
 
+  /** detail 조회: category include */
   async findOne(
     organizationId: number,
     productId: number,
@@ -243,6 +246,7 @@ export class ProductService {
     return this.toProductResponse(updated);
   }
 
+  /** soft delete: is_active = false */
   async remove(organizationId: number, productId: number): Promise<void> {
     const existing = await this.prisma.product.findFirst({
       where: {

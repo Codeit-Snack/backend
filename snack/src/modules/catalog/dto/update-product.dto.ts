@@ -10,9 +10,12 @@ import {
   Min,
 } from 'class-validator';
 
+/**
+ * update 시: undefined = 필드 생략(변경 없음), null = 명시적 null 설정(예: categoryId 해제)
+ */
 export class UpdateProductDto {
   @ApiPropertyOptional({
-    description: '카테고리 ID (null이면 해제)',
+    description: '카테고리 ID (null이면 카테고리 해제)',
     nullable: true,
   })
   @IsOptional()
@@ -48,7 +51,7 @@ export class UpdateProductDto {
   @IsUrl()
   productUrl?: string | null;
 
-  @ApiPropertyOptional({ description: '활성 여부' })
+  @ApiPropertyOptional({ description: '활성 여부 (soft delete 시 false)' })
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CategoryResponseDto } from './category-response.dto';
 
+/** Decimal(price) 직렬화: 문자열로 노출하여 정확도 유지 */
 export class ProductResponseDto {
   @ApiProperty({ example: 1 })
   id!: number;
@@ -15,7 +16,7 @@ export class ProductResponseDto {
   name!: string;
 
   @ApiProperty({
-    description: '가격 (Decimal 직렬화 문자열)',
+    description: '가격 (Decimal 직렬화용 문자열)',
     example: '1500.00',
   })
   price!: string;
@@ -42,7 +43,7 @@ export class ProductResponseDto {
   updatedAt!: string;
 
   @ApiPropertyOptional({
-    description: '상세 조회 시 포함',
+    description: '상세 조회 시에만 포함',
     type: () => CategoryResponseDto,
     nullable: true,
   })

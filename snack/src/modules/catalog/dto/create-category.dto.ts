@@ -11,6 +11,7 @@ import {
 export class CreateCategoryDto {
   @ApiPropertyOptional({
     description: '부모 카테고리 ID (최상위면 생략)',
+    example: null,
   })
   @IsOptional()
   @IsInt()
