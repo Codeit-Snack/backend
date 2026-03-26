@@ -7,10 +7,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AppException } from '../exceptions/app.exception';
-import {
-  ErrorCode,
-  HTTP_STATUS_TO_ERROR_CODE,
-} from '../enums/error-code.enum';
+import { ErrorCode, HTTP_STATUS_TO_ERROR_CODE } from '../enums/error-code.enum';
 import { ErrorResponse } from '../types/error-response.type';
 
 @Catch()

@@ -11,6 +11,9 @@ import { InvitationModule } from './invitation/invitation.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { UsersModule } from './users/users.module';
+import { CategoriesModule } from './categories/categories.module';
+import { ProductsModule } from './products/products.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 @Module({
   imports: [
@@ -25,6 +28,9 @@ import { UsersModule } from './users/users.module';
     InvitationModule,
     OrganizationsModule,
     UsersModule,
+    CategoriesModule,
+    ProductsModule,
+    CatalogModule,
   ],
   controllers: [AppController],
   providers: [AppService],

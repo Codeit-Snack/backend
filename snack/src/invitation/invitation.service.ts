@@ -15,7 +15,6 @@ import { ErrorCode } from '../common/enums/error-code.enum';
 import { InviteDto } from './dto/invite.dto';
 
 const INVITATION_TOKEN_PREFIX = 'invitation:';
-const DEFAULT_EXPIRES_HOURS = 168; // 7일
 
 @Injectable()
 export class InvitationService {
@@ -71,10 +70,7 @@ export class InvitationService {
       },
     });
     if (alreadyMember) {
-      throw new AppException(
-        ErrorCode.ALREADY_EXISTS,
-        '이미 조직 멤버입니다.',
-      );
+      throw new AppException(ErrorCode.ALREADY_EXISTS, '이미 조직 멤버입니다.');
     }
 
     const pendingInvite = await this.prisma.invitation.findFirst({
@@ -93,7 +89,7 @@ export class InvitationService {
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const tokenHash = await this.hashToken(token);
+    const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
     const roleToGrant = dto.roleToGrant ?? OrgRole.MEMBER;
@@ -276,7 +272,11 @@ export class InvitationService {
   }
 
   /** 초대 취소 (초대자가 보낸 초대를 취소) - 조직 관리자만 가능 */
-  async cancel(organizationId: bigint, email: string, currentUser: CurrentUserPayload) {
+  async cancel(
+    organizationId: bigint,
+    email: string,
+    currentUser: CurrentUserPayload,
+  ) {
     const normalizedEmail = email.trim().toLowerCase();
 
     const org = await this.prisma.organization.findUnique({
@@ -338,7 +338,7 @@ export class InvitationService {
       );
     }
 
-    const { organizationId, email, invitationId } = JSON.parse(redisData);
+    const { email, invitationId } = JSON.parse(redisData);
 
     const invitation = await this.prisma.invitation.findUnique({
       where: { id: BigInt(invitationId) },
@@ -490,9 +490,13 @@ export class InvitationService {
       const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
       const expiresAt = new Date();
       if (refreshExpiresIn.endsWith('d')) {
-        expiresAt.setDate(expiresAt.getDate() + Number(refreshExpiresIn.slice(0, -1)));
+        expiresAt.setDate(
+          expiresAt.getDate() + Number(refreshExpiresIn.slice(0, -1)),
+        );
       } else if (refreshExpiresIn.endsWith('h')) {
-        expiresAt.setHours(expiresAt.getHours() + Number(refreshExpiresIn.slice(0, -1)));
+        expiresAt.setHours(
+          expiresAt.getHours() + Number(refreshExpiresIn.slice(0, -1)),
+        );
       } else {
         expiresAt.setDate(expiresAt.getDate() + 7);
       }
