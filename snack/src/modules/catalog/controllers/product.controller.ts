@@ -19,8 +19,8 @@ import { ProductResponseDto } from '../dto/product-response.dto';
 import { OrganizationId } from '../decorators/catalog-context.decorator';
 import { UserId } from '../decorators/catalog-context.decorator';
 
-@ApiTags('Catalog - Product')
-@Controller('catalog/products')
+@ApiTags('Products')
+@Controller('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 

@@ -300,4 +300,16 @@ export class CartService {
       where: { id: line.id },
     });
   }
+
+  /** 구매 요청 제출 후 카트 비우기 (카트 없으면 무시) */
+  async clearAllItems(organizationId: number, userId: number): Promise<void> {
+    await this.prisma.cartItem.deleteMany({
+      where: {
+        cart: {
+          organizationId: BigInt(organizationId),
+          userId: BigInt(userId),
+        },
+      },
+    });
+  }
 }

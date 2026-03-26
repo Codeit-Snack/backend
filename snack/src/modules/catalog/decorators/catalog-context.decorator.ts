@@ -1,32 +1,38 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import {
+  createParamDecorator,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 /**
- * 요청 컨텍스트에서 조직 ID를 반환.
- * 인증/미들웨어에서 request.organizationId 또는 request.user?.organizationId 설정을 가정.
+ * 인증/미들웨어에서 request.organizationId 또는 request.user?.organizationId 를 설정해야 함.
  */
 export const OrganizationId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): number => {
     const request = ctx.switchToHttp().getRequest();
-    const value = request.organizationId ?? request.user?.organizationId;
-    const n = Number(value);
-    if (Number.isNaN(n) || n < 1) {
-      return 1; // 개발용 기본값; 실제로는 Guard에서 검증 권장
+    const raw = request.organizationId ?? request.user?.organizationId;
+    const n = Number(raw);
+    if (raw === undefined || raw === null || raw === '' || Number.isNaN(n) || n < 1) {
+      throw new UnauthorizedException(
+        '조직 컨텍스트가 없습니다. 로그인 및 조직 선택 후 다시 시도해 주세요.',
+      );
     }
     return n;
   },
 );
 
 /**
- * 요청 컨텍스트에서 사용자 ID를 반환.
- * 인증/미들웨어에서 request.userId 또는 request.user?.sub 설정을 가정.
+ * 인증/미들웨어에서 request.userId 또는 request.user?.sub 를 설정해야 함.
  */
 export const UserId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): number => {
     const request = ctx.switchToHttp().getRequest();
-    const value = request.userId ?? request.user?.sub;
-    const n = Number(value);
-    if (Number.isNaN(n) || n < 1) {
-      return 1; // 개발용 기본값; 실제로는 Guard에서 검증 권장
+    const raw = request.userId ?? request.user?.sub;
+    const n = Number(raw);
+    if (raw === undefined || raw === null || raw === '' || Number.isNaN(n) || n < 1) {
+      throw new UnauthorizedException(
+        '사용자 컨텍스트가 없습니다. 로그인 후 다시 시도해 주세요.',
+      );
     }
     return n;
   },
