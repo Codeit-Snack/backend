@@ -57,10 +57,7 @@ export class MailService {
     `;
 
     await this.transporter.sendMail({
-      from: this.configService.get<string>(
-        'SMTP_FROM',
-        'noreply@snack.local',
-      ),
+      from: this.configService.get<string>('SMTP_FROM', 'noreply@snack.local'),
       to,
       subject,
       html,
