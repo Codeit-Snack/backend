@@ -5,6 +5,11 @@ import {
   purchase_orders_status,
   type PurchaseRequest,
 } from '@prisma/client';
+
+const PO_CANCELABLE_ON_REQUEST_CANCEL: purchase_orders_status[] = [
+  purchase_orders_status.PENDING_SELLER_APPROVAL,
+  purchase_orders_status.APPROVED,
+];
 import { PrismaService } from '../../../database/prisma.service';
 import { AppException } from '../../../common/exceptions/app.exception';
 import { ErrorCode } from '../../../common/enums/error-code.enum';
@@ -45,7 +50,9 @@ export class PurchaseRequestService {
     return typeof v === 'string' ? v : String(v);
   }
 
-  private toItemDto(row: RequestWithItems['purchase_request_items'][0]): PurchaseRequestItemResponseDto {
+  private toItemDto(
+    row: RequestWithItems['purchase_request_items'][0],
+  ): PurchaseRequestItemResponseDto {
     return {
       id: Number(row.id),
       sellerOrganizationId: Number(row.seller_organization_id),
@@ -295,17 +302,27 @@ export class PurchaseRequestService {
       );
     }
 
-    const updated = await this.prisma.purchaseRequest.update({
-      where: { id: existing.id },
-      data: {
-        status: PurchaseRequestStatus.CANCELED,
-        canceledAt: new Date(),
-      },
-      include: {
-        purchase_request_items: {
-          orderBy: { id: 'asc' },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.purchase_orders.updateMany({
+        where: {
+          purchase_request_id: existing.id,
+          status: { in: PO_CANCELABLE_ON_REQUEST_CANCEL },
         },
-      },
+        data: { status: purchase_orders_status.CANCELED },
+      });
+
+      return tx.purchaseRequest.update({
+        where: { id: existing.id },
+        data: {
+          status: PurchaseRequestStatus.CANCELED,
+          canceledAt: new Date(),
+        },
+        include: {
+          purchase_request_items: {
+            orderBy: { id: 'asc' },
+          },
+        },
+      });
     });
 
     return this.toDetail(updated as unknown as RequestWithItems);

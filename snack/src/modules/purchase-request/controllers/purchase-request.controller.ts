@@ -7,8 +7,15 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PurchaseRequestService } from '../services/purchase-request.service';
 import { CreatePurchaseRequestDto } from '../dto/create-purchase-request.dto';
 import { PurchaseRequestListQueryDto } from '../dto/purchase-request-list-query.dto';
@@ -17,6 +24,8 @@ import { OrganizationId } from '../../catalog/decorators/catalog-context.decorat
 import { UserId } from '../../catalog/decorators/catalog-context.decorator';
 
 @ApiTags('PurchaseRequest')
+@ApiBearerAuth('access-token')
+@UseGuards(JwtAuthGuard)
 @Controller('purchase-requests')
 export class PurchaseRequestController {
   constructor(
