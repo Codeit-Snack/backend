@@ -11,6 +11,11 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_ec2_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   snack-api:
     build:
@@ -19,7 +24,8 @@ services:
     container_name: snack-api
     restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     ports:
       - '127.0.0.1:3000:3000'
     env_file:

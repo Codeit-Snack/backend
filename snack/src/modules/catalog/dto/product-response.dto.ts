@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CategoryResponseDto } from './category-response.dto';
+import { CategoryResponseDto } from '@/modules/catalog/dto/category-response.dto';
 
 /** Decimal(price) 직렬화: 문자열로 노출하여 정확도 유지 */
 export class ProductResponseDto {

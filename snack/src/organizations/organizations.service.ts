@@ -5,11 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { OrgRole, OrgType } from '@prisma/client';
-import { PrismaService } from '../database/prisma.service';
-import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
-import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { UpdateOrganizationMemberRoleDto } from './dto/update-organization-member-role.dto';
+import { PrismaService } from '@/database/prisma.service';
+import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
+import { CreateOrganizationDto } from '@/organizations/dto/create-organization.dto';
+import { UpdateOrganizationDto } from '@/organizations/dto/update-organization.dto';
+import { UpdateOrganizationMemberRoleDto } from '@/organizations/dto/update-organization-member-role.dto';
 
 @Injectable()
 export class OrganizationsService {

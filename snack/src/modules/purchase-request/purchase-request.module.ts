@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { AuditModule } from '../audit/audit.module';
-import { PurchaseRequestController } from './controllers/purchase-request.controller';
-import { PurchaseRequestService } from './services/purchase-request.service';
+import { AuditModule } from '@/modules/audit/audit.module';
+import { PurchaseRequestController } from '@/modules/purchase-request/controllers/purchase-request.controller';
+import { PurchaseRequestService } from '@/modules/purchase-request/services/purchase-request.service';
 
 @Module({
   imports: [AuditModule],

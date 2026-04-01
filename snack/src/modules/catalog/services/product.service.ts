@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../../../database/prisma.service';
-import { AppException } from '../../../common/exceptions/app.exception';
-import { ErrorCode } from '../../../common/enums/error-code.enum';
-import { CreateProductDto } from '../dto/create-product.dto';
-import { UpdateProductDto } from '../dto/update-product.dto';
-import { ProductListQueryDto } from '../dto/product-list-query.dto';
-import { ProductResponseDto } from '../dto/product-response.dto';
+import { PrismaService } from '@/database/prisma.service';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import { CreateProductDto } from '@/modules/catalog/dto/create-product.dto';
+import { UpdateProductDto } from '@/modules/catalog/dto/update-product.dto';
+import { ProductListQueryDto } from '@/modules/catalog/dto/product-list-query.dto';
+import { ProductResponseDto } from '@/modules/catalog/dto/product-response.dto';
 
 type ProductRow = {
   id: bigint;

@@ -30,7 +30,7 @@ SMTP·기타는 `.env.example` 참고.
 ## 4. 빌드 / 기동
 
 - `snack/railway.json` 으로 **Dockerfile** 빌드를 쓰도록 해 두었습니다(레일팩 계획 단계 혼선 줄임).  
-- 이미지 안 `entrypoint` 가 `prisma migrate deploy` 후 `node dist/main.js` 를 실행합니다.  
+- 이미지 안 `entrypoint` 가 `prisma migrate deploy` 후 `node dist/src/main.js` 를 실행합니다.  
 - Railpack(NPM)만 쓰고 싶다면 대시보드에서 Builder 를 바꾸고, 이때는 `package.json` 의 `postinstall`(prisma generate)이 도움이 됩니다.
 
 ## 5. 공개 URL

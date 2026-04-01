@@ -4,13 +4,13 @@ import {
   Prisma,
   purchase_orders_status,
 } from '@prisma/client';
-import { PrismaService } from '../../../database/prisma.service';
-import { AppException } from '../../../common/exceptions/app.exception';
-import { ErrorCode } from '../../../common/enums/error-code.enum';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { AuditLogService } from '../../audit/audit-log.service';
-import { assertOrgAdmin } from '../utils/assert-org-admin.util';
-import { CreateBudgetReservationDto } from '../dto/create-budget-reservation.dto';
+import { PrismaService } from '@/database/prisma.service';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { AuditLogService } from '@/modules/audit/audit-log.service';
+import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
+import { CreateBudgetReservationDto } from '@/modules/finance/dto/create-budget-reservation.dto';
 
 const PO_BLOCK_RESERVATION: purchase_orders_status[] = [
   purchase_orders_status.REJECTED,

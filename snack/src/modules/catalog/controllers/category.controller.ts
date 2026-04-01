@@ -9,13 +9,23 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { CategoryService } from '../services/category.service';
-import { CreateCategoryDto } from '../dto/create-category.dto';
-import { UpdateCategoryDto } from '../dto/update-category.dto';
-import { CategoryListQueryDto } from '../dto/category-list-query.dto';
-import { CategoryResponseDto } from '../dto/category-response.dto';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
+import { CategoryService } from '@/modules/catalog/services/category.service';
+import { CreateCategoryDto } from '@/modules/catalog/dto/create-category.dto';
+import { UpdateCategoryDto } from '@/modules/catalog/dto/update-category.dto';
+import { CategoryListQueryDto } from '@/modules/catalog/dto/category-list-query.dto';
+import { CategoryResponseDto } from '@/modules/catalog/dto/category-response.dto';
 
 @ApiTags('Categories')
 @Controller('categories')
@@ -23,7 +33,9 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Post()
-  @ApiOperation({ summary: '카테고리 등록' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: '카테고리 등록 (조직 ADMIN 이상)' })
   @ApiResponse({
     status: 201,
     description: '등록됨',
@@ -31,7 +43,8 @@ export class CategoryController {
   })
   @ApiResponse({ status: 400, description: '검증 실패' })
   @ApiResponse({ status: 404, description: '부모 카테고리 없음' })
-  create(@Body() dto: CreateCategoryDto) {
+  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateCategoryDto) {
+    assertOrgAdmin(user, '카테고리 등록은 관리자만 가능합니다.');
     return this.categoryService.create(dto);
   }
 
@@ -59,7 +72,9 @@ export class CategoryController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: '카테고리 수정' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: '카테고리 수정 (조직 ADMIN 이상)' })
   @ApiResponse({
     status: 200,
     description: '수정됨',
@@ -67,21 +82,31 @@ export class CategoryController {
   })
   @ApiResponse({ status: 404, description: '카테고리 없음' })
   update(
+    @CurrentUser() user: JwtPayload,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCategoryDto,
   ) {
+    assertOrgAdmin(user, '카테고리 수정은 관리자만 가능합니다.');
     return this.categoryService.update(id, dto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: '카테고리 삭제 (하위/연결 상품 있으면 불가)' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: '카테고리 삭제 (조직 ADMIN 이상, 하위/연결 상품 있으면 불가)',
+  })
   @ApiResponse({ status: 204, description: '삭제됨' })
   @ApiResponse({ status: 404, description: '카테고리 없음' })
   @ApiResponse({
     status: 409,
     description: '하위 카테고리 또는 연결 상품 있음',
   })
-  async remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    assertOrgAdmin(user, '카테고리 삭제는 관리자만 가능합니다.');
     await this.categoryService.remove(id);
   }
 }

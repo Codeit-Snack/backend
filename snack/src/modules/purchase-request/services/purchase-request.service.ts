@@ -5,17 +5,17 @@ import {
   purchase_orders_status,
   type PurchaseRequest,
 } from '@prisma/client';
-import { PrismaService } from '../../../database/prisma.service';
-import { AuditLogService } from '../../audit/audit-log.service';
-import { AppException } from '../../../common/exceptions/app.exception';
-import { ErrorCode } from '../../../common/enums/error-code.enum';
-import { CreatePurchaseRequestDto } from '../dto/create-purchase-request.dto';
-import { PurchaseRequestListQueryDto } from '../dto/purchase-request-list-query.dto';
+import { PrismaService } from '@/database/prisma.service';
+import { AuditLogService } from '@/modules/audit/audit-log.service';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import { CreatePurchaseRequestDto } from '@/modules/purchase-request/dto/create-purchase-request.dto';
+import { PurchaseRequestListQueryDto } from '@/modules/purchase-request/dto/purchase-request-list-query.dto';
 import {
   PurchaseRequestDetailResponseDto,
   PurchaseRequestItemResponseDto,
   PurchaseRequestSummaryResponseDto,
-} from '../dto/purchase-request-response.dto';
+} from '@/modules/purchase-request/dto/purchase-request-response.dto';
 
 type RequestWithItems = PurchaseRequest & {
   purchase_request_items: Array<{

@@ -9,12 +9,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
-import { BudgetReservationService } from '../services/budget-reservation.service';
-import { CreateBudgetReservationDto } from '../dto/create-budget-reservation.dto';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { BudgetReservationService } from '@/modules/finance/services/budget-reservation.service';
+import { CreateBudgetReservationDto } from '@/modules/finance/dto/create-budget-reservation.dto';
 
 @ApiTags('Budget')
 @ApiBearerAuth('access-token')
