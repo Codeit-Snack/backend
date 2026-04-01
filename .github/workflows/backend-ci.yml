@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: snack
 
     steps:
       - name: Checkout repository
@@ -20,12 +23,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: snack/package-lock.json
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Generate Prisma Client
-        run: npx prisma generate
 
       - name: Build
         run: npm run build
