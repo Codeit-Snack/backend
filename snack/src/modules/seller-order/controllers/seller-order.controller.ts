@@ -16,16 +16,16 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
+import {
+  OrganizationId,
+  UserId,
+} from '../../catalog/decorators/catalog-context.decorator';
 import { SellerOrderService } from '../services/seller-order.service';
 import { SellerOrderListQueryDto } from '../dto/seller-order-list-query.dto';
 import { ApproveSellerOrderDto } from '../dto/approve-seller-order.dto';
 import { RejectSellerOrderDto } from '../dto/reject-seller-order.dto';
 import { RecordPurchaseDto } from '../dto/record-purchase.dto';
 import { UpdateShippingDto } from '../dto/update-shipping.dto';
-import { CancelSellerOrderDto } from '../dto/cancel-seller-order.dto';
 
 @ApiTags('SellerOrders')
 @ApiBearerAuth('access-token')
@@ -45,7 +45,7 @@ export class SellerOrderController {
     @OrganizationId() sellerOrganizationId: number,
     @Query() query: SellerOrderListQueryDto,
   ) {
-    return this.sellerOrderService.findAll(sellerOrganizationId, query);
+    return this.sellerOrderService.list(sellerOrganizationId, query);
   }
 
   @Get(':id')
@@ -66,11 +66,16 @@ export class SellerOrderController {
   })
   approve(
     @OrganizationId() sellerOrganizationId: number,
+    @UserId() userId: number,
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: JwtPayload,
     @Body() dto: ApproveSellerOrderDto,
   ) {
-    return this.sellerOrderService.approve(sellerOrganizationId, id, user, dto);
+    return this.sellerOrderService.approve(
+      sellerOrganizationId,
+      userId,
+      id,
+      dto,
+    );
   }
 
   @Post(':id/reject')
@@ -81,11 +86,16 @@ export class SellerOrderController {
   })
   reject(
     @OrganizationId() sellerOrganizationId: number,
+    @UserId() userId: number,
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: JwtPayload,
     @Body() dto: RejectSellerOrderDto,
   ) {
-    return this.sellerOrderService.reject(sellerOrganizationId, id, user, dto);
+    return this.sellerOrderService.reject(
+      sellerOrganizationId,
+      userId,
+      id,
+      dto,
+    );
   }
 
   @Post(':id/record-purchase')
@@ -96,14 +106,14 @@ export class SellerOrderController {
   })
   recordPurchase(
     @OrganizationId() sellerOrganizationId: number,
+    @UserId() userId: number,
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: JwtPayload,
     @Body() dto: RecordPurchaseDto,
   ) {
     return this.sellerOrderService.recordPurchase(
       sellerOrganizationId,
+      userId,
       id,
-      user,
       dto,
     );
   }
@@ -115,14 +125,14 @@ export class SellerOrderController {
   })
   updateShipping(
     @OrganizationId() sellerOrganizationId: number,
+    @UserId() userId: number,
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: JwtPayload,
     @Body() dto: UpdateShippingDto,
   ) {
     return this.sellerOrderService.updateShipping(
       sellerOrganizationId,
+      userId,
       id,
-      user,
       dto,
     );
   }
@@ -134,10 +144,9 @@ export class SellerOrderController {
   })
   cancel(
     @OrganizationId() sellerOrganizationId: number,
+    @UserId() userId: number,
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: CancelSellerOrderDto,
   ) {
-    return this.sellerOrderService.cancel(sellerOrganizationId, id, user, dto);
+    return this.sellerOrderService.cancel(sellerOrganizationId, userId, id);
   }
 }
