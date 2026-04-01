@@ -7,13 +7,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { PrismaService } from '@/database/prisma.service';
+import { HealthService } from '@/health/health.service';
 
 @ApiTags('Health')
 @Controller('health')
 export class HealthController {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly health: HealthService,
     private readonly config: ConfigService,
   ) {}
 
@@ -56,7 +56,7 @@ export class HealthController {
       }
     }
 
-    await this.prisma.$queryRaw`SELECT 1`;
+    await this.health.pingDatabase();
     return {
       status: 'ok',
       database: 'connected',

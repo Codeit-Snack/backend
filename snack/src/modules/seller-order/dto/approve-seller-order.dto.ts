@@ -7,4 +7,9 @@ export class ApproveSellerOrderDto {
   @IsString()
   @MaxLength(2000)
   decisionMessage?: string;
+
+  @ApiPropertyOptional({ description: '배송비 (승인 시 주문에 반영)' })
+  @IsOptional()
+  @IsString()
+  shippingFee?: string;
 }
