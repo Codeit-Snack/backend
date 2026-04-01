@@ -1,17 +1,33 @@
 # 루트에서: docker compose -f deploy/docker-compose.ec2.yml up -d --build
+# Redis: 아래 snack-api 의 environment 가 REDIS_HOST=redis 로 덮어씀(.env 가 localhost여도 OK)
+
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: snack-redis
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:6379:6379'
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_ec2_data:/data
+
   snack-api:
     build:
       context: ..
       dockerfile: Dockerfile
     container_name: snack-api
     restart: unless-stopped
+    depends_on:
+      - redis
     ports:
       - '127.0.0.1:3000:3000'
     env_file:
       - ../.env
     environment:
       NODE_ENV: production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     healthcheck:
       test:
         [
@@ -24,3 +40,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+volumes:
+  redis_ec2_data:
