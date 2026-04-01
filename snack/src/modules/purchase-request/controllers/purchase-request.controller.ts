@@ -16,6 +16,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
 import { PurchaseRequestService } from '@/modules/purchase-request/services/purchase-request.service';
 import { CreatePurchaseRequestDto } from '@/modules/purchase-request/dto/create-purchase-request.dto';
 import { PurchaseRequestListQueryDto } from '@/modules/purchase-request/dto/purchase-request-list-query.dto';
@@ -55,17 +57,22 @@ export class PurchaseRequestController {
   }
 
   @Get()
-  @ApiOperation({ summary: '구매 요청 목록 (buyer org + 요청자 본인)' })
+  @ApiOperation({
+    summary:
+      '구매 요청 목록 (바이어 org). MEMBER는 본인이 요청한 건만, ADMIN/SUPER_ADMIN은 조직 전체',
+  })
   @ApiResponse({ status: 200, description: '목록 + 페이지 메타' })
   findAll(
     @OrganizationId() buyerOrganizationId: number,
     @UserId() requesterUserId: number,
+    @CurrentUser() currentUser: CurrentUserPayload,
     @Query() query: PurchaseRequestListQueryDto,
   ) {
     return this.purchaseRequestService.findAll(
       buyerOrganizationId,
       requesterUserId,
       query,
+      currentUser.role,
     );
   }
 
@@ -80,12 +87,14 @@ export class PurchaseRequestController {
   async findOne(
     @OrganizationId() buyerOrganizationId: number,
     @UserId() requesterUserId: number,
+    @CurrentUser() currentUser: CurrentUserPayload,
     @Param('id', ParseIntPipe) id: number,
   ) {
     const one = await this.purchaseRequestService.findOne(
       buyerOrganizationId,
       requesterUserId,
       id,
+      currentUser.role,
     );
     if (!one) {
       throw new NotFoundException('구매 요청을 찾을 수 없습니다.');
@@ -95,7 +104,8 @@ export class PurchaseRequestController {
 
   @Post(':id/cancel')
   @ApiOperation({
-    summary: '구매 요청 취소 (OPEN / PARTIALLY_APPROVED / READY_TO_PURCHASE)',
+    summary:
+      '구매 요청 취소 (OPEN / PARTIALLY_APPROVED / READY_TO_PURCHASE). 요청자 또는 조직 ADMIN/SUPER_ADMIN',
   })
   @ApiResponse({
     status: 200,
@@ -107,12 +117,14 @@ export class PurchaseRequestController {
   cancel(
     @OrganizationId() buyerOrganizationId: number,
     @UserId() requesterUserId: number,
+    @CurrentUser() currentUser: CurrentUserPayload,
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.purchaseRequestService.cancel(
       buyerOrganizationId,
       requesterUserId,
       id,
+      currentUser.role,
     );
   }
 }
