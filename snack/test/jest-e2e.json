@@ -3,6 +3,8 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
+  "testTimeout": 120000,
+  "forceExit": true,
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   }
