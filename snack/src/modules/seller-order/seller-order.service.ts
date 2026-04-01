@@ -14,6 +14,7 @@ import { ApproveSellerOrderDto } from '@/modules/seller-order/dto/approve-seller
 import { RejectSellerOrderDto } from '@/modules/seller-order/dto/reject-seller-order.dto';
 import { RecordPurchaseDto } from '@/modules/seller-order/dto/record-purchase.dto';
 import { UpdateShippingDto } from '@/modules/seller-order/dto/update-shipping.dto';
+import { releaseActiveBudgetReservationsForPurchaseOrders } from '@/modules/finance/utils/release-budget-reservations.util';
 
 @Injectable()
 export class SellerOrderService {
@@ -349,6 +350,8 @@ export class SellerOrderService {
         },
       });
 
+      await releaseActiveBudgetReservationsForPurchaseOrders(tx, [po.id]);
+
       await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });
 
@@ -396,6 +399,8 @@ export class SellerOrderService {
           updated_at: new Date(),
         },
       });
+
+      await releaseActiveBudgetReservationsForPurchaseOrders(tx, [po.id]);
 
       await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });
@@ -453,6 +458,24 @@ export class SellerOrderService {
         );
       }
 
+      const externalNo = dto.externalOrderNo?.trim();
+      if (externalNo) {
+        const clash = await tx.purchase_orders.findFirst({
+          where: {
+            platform: dto.platform,
+            external_order_no: externalNo,
+            NOT: { id: po.id },
+          },
+          select: { id: true },
+        });
+        if (clash) {
+          throw new AppException(
+            ErrorCode.CONFLICT,
+            '동일 플랫폼에서 이미 사용 중인 외부 주문번호입니다.',
+          );
+        }
+      }
+
       const existingCount = await tx.purchase_order_items.count({
         where: { purchase_order_id: po.id },
       });
@@ -482,7 +505,7 @@ export class SellerOrderService {
         data: {
           status: purchase_orders_status.PURCHASED,
           platform: dto.platform,
-          external_order_no: dto.externalOrderNo ?? null,
+          external_order_no: externalNo ? externalNo : null,
           order_url: dto.orderUrl ?? null,
           ...(shippingFee !== undefined && { shipping_fee: shippingFee }),
           ordered_at: new Date(),
@@ -491,6 +514,21 @@ export class SellerOrderService {
           updated_at: new Date(),
         },
       });
+
+      const qtyByProduct = new Map<bigint, number>();
+      for (const li of lines) {
+        if (li.product_id == null) {
+          continue;
+        }
+        const prev = qtyByProduct.get(li.product_id) ?? 0;
+        qtyByProduct.set(li.product_id, prev + li.quantity);
+      }
+      for (const [productId, qty] of qtyByProduct) {
+        await tx.product.update({
+          where: { id: productId },
+          data: { purchaseCountCache: { increment: qty } },
+        });
+      }
 
       await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });

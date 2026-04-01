@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { budget_reservations_status, Prisma } from '@prisma/client';
+import {
+  budget_reservations_status,
+  Prisma,
+  purchase_orders_status,
+} from '@prisma/client';
 import { PrismaService } from '@/database/prisma.service';
 import { AppException } from '@/common/exceptions/app.exception';
 import { ErrorCode } from '@/common/enums/error-code.enum';
@@ -39,6 +43,13 @@ export class ExpenseService {
       throw new AppException(
         ErrorCode.RESOURCE_NOT_FOUND,
         '판매자 주문을 찾을 수 없습니다.',
+      );
+    }
+
+    if (po.status !== purchase_orders_status.PURCHASED) {
+      throw new AppException(
+        ErrorCode.CONFLICT,
+        '구매 완료(PURCHASED)된 판매자 주문에만 지출을 등록할 수 있습니다.',
       );
     }
 

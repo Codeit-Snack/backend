@@ -118,13 +118,35 @@ export class BudgetPeriodService {
     }));
   }
 
-  async summary(organizationId: number, year: number, month: number) {
+  /**
+   * 해당 월의 예산·지출·ACTIVE 예약을 반영한 가용 잔액.
+   * 예산 행이 없으면 budgetAmount=0, hasPeriod=false 이지만 지출·예약 합은 동일하게 반영됩니다.
+   */
+  async computeRemainingFunds(
+    organizationId: number,
+    year: number,
+    month: number,
+  ): Promise<{
+    hasPeriod: boolean;
+    remaining: Prisma.Decimal;
+    budgetAmount: Prisma.Decimal;
+    spent: Prisma.Decimal;
+    reservedActive: Prisma.Decimal;
+  }> {
     const { start, end } = this.monthRangeUtc(year, month);
     const orgId = BigInt(organizationId);
 
-    const period = await this.findOne(organizationId, year, month);
-    const budgetAmountDec = period
-      ? new Prisma.Decimal(period.budgetAmount)
+    const periodRow = await this.prisma.budget_periods.findUnique({
+      where: {
+        organization_id_year_month: {
+          organization_id: orgId,
+          year,
+          month,
+        },
+      },
+    });
+    const budgetAmountDec = periodRow
+      ? new Prisma.Decimal(periodRow.budget_amount)
       : new Prisma.Decimal(0);
 
     const spentAgg = await this.prisma.expenses.aggregate({
@@ -167,15 +189,27 @@ export class BudgetPeriodService {
 
     const remaining = budgetAmountDec.sub(spent).sub(reservedActive);
     return {
+      hasPeriod: periodRow != null,
+      remaining,
+      budgetAmount: budgetAmountDec,
+      spent,
+      reservedActive,
+    };
+  }
+
+  async summary(organizationId: number, year: number, month: number) {
+    const f = await this.computeRemainingFunds(organizationId, year, month);
+    const remainingCapped = f.remaining.lt(0)
+      ? new Prisma.Decimal(0)
+      : f.remaining;
+    return {
       year,
       month,
-      budgetAmount: this.decStr(budgetAmountDec),
-      spentAmount: this.decStr(spent),
-      reservedActiveAmount: this.decStr(reservedActive),
-      remainingAmount: this.decStr(
-        remaining.lt(0) ? new Prisma.Decimal(0) : remaining,
-      ),
-      hasPeriodConfigured: period != null,
+      budgetAmount: this.decStr(f.budgetAmount),
+      spentAmount: this.decStr(f.spent),
+      reservedActiveAmount: this.decStr(f.reservedActive),
+      remainingAmount: this.decStr(remainingCapped),
+      hasPeriodConfigured: f.hasPeriod,
     };
   }
 }
