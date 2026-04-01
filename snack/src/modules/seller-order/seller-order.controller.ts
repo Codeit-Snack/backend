@@ -17,15 +17,15 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { OrganizationId } from '../catalog/decorators/catalog-context.decorator';
-import { UserId } from '../catalog/decorators/catalog-context.decorator';
-import { SellerOrderService } from './seller-order.service';
-import { SellerOrderListQueryDto } from './dto/seller-order-list-query.dto';
-import { ApproveSellerOrderDto } from './dto/approve-seller-order.dto';
-import { RejectSellerOrderDto } from './dto/reject-seller-order.dto';
-import { RecordPurchaseDto } from './dto/record-purchase.dto';
-import { UpdateShippingDto } from './dto/update-shipping.dto';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { UserId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { SellerOrderService } from '@/modules/seller-order/seller-order.service';
+import { SellerOrderListQueryDto } from '@/modules/seller-order/dto/seller-order-list-query.dto';
+import { ApproveSellerOrderDto } from '@/modules/seller-order/dto/approve-seller-order.dto';
+import { RejectSellerOrderDto } from '@/modules/seller-order/dto/reject-seller-order.dto';
+import { RecordPurchaseDto } from '@/modules/seller-order/dto/record-purchase.dto';
+import { UpdateShippingDto } from '@/modules/seller-order/dto/update-shipping.dto';
 
 @ApiTags('SellerOrder')
 @ApiBearerAuth('access-token')

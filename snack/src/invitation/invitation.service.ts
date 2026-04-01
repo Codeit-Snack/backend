@@ -6,13 +6,13 @@ import { InvitationStatus, OrgRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../database/prisma.service';
-import { MailService } from '../mail/mail.service';
-import { RedisService } from '../redis/redis.service';
-import { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { AppException } from '../common/exceptions/app.exception';
-import { ErrorCode } from '../common/enums/error-code.enum';
-import { InviteDto } from './dto/invite.dto';
+import { PrismaService } from '@/database/prisma.service';
+import { MailService } from '@/mail/mail.service';
+import { RedisService } from '@/redis/redis.service';
+import { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import { InviteDto } from '@/invitation/dto/invite.dto';
 
 const INVITATION_TOKEN_PREFIX = 'invitation:';
 /** 초대 ID → 현재 평문 토큰 (취소·재전송 시 Redis 정리용) */

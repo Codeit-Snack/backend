@@ -5,15 +5,16 @@ import {
   purchase_order_decisions_decision,
   purchase_orders_status,
 } from '@prisma/client';
-import { PrismaService } from '../../database/prisma.service';
-import { AuditLogService } from '../audit/audit-log.service';
-import { AppException } from '../../common/exceptions/app.exception';
-import { ErrorCode } from '../../common/enums/error-code.enum';
-import { SellerOrderListQueryDto } from './dto/seller-order-list-query.dto';
-import { ApproveSellerOrderDto } from './dto/approve-seller-order.dto';
-import { RejectSellerOrderDto } from './dto/reject-seller-order.dto';
-import { RecordPurchaseDto } from './dto/record-purchase.dto';
-import { UpdateShippingDto } from './dto/update-shipping.dto';
+import { PrismaService } from '@/database/prisma.service';
+import { AuditLogService } from '@/modules/audit/audit-log.service';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import { SellerOrderListQueryDto } from '@/modules/seller-order/dto/seller-order-list-query.dto';
+import { ApproveSellerOrderDto } from '@/modules/seller-order/dto/approve-seller-order.dto';
+import { RejectSellerOrderDto } from '@/modules/seller-order/dto/reject-seller-order.dto';
+import { RecordPurchaseDto } from '@/modules/seller-order/dto/record-purchase.dto';
+import { UpdateShippingDto } from '@/modules/seller-order/dto/update-shipping.dto';
+import { releaseActiveBudgetReservationsForPurchaseOrders } from '@/modules/finance/utils/release-budget-reservations.util';
 
 @Injectable()
 export class SellerOrderService {
@@ -260,14 +261,21 @@ export class SellerOrderService {
         );
       }
 
+      const decisionMsg = dto.decisionMessage?.trim() || null;
+
       await tx.purchase_order_decisions.create({
         data: {
           purchase_order_id: po.id,
           decided_by_user_id: BigInt(userId),
           decision: purchase_order_decisions_decision.APPROVED,
-          decision_message: dto.decisionMessage ?? null,
+          decision_message: decisionMsg,
         },
       });
+
+      const shippingFee =
+        dto.shippingFee != null && dto.shippingFee !== ''
+          ? new Prisma.Decimal(dto.shippingFee)
+          : undefined;
 
       await tx.purchase_orders.update({
         where: { id: po.id },
@@ -275,6 +283,7 @@ export class SellerOrderService {
           status: purchase_orders_status.APPROVED,
           approved_at: new Date(),
           updated_at: new Date(),
+          ...(shippingFee !== undefined && { shipping_fee: shippingFee }),
         },
       });
 
@@ -320,12 +329,15 @@ export class SellerOrderService {
         );
       }
 
+      const rejectMsg =
+        dto.message?.trim() || dto.decisionMessage?.trim() || null;
+
       await tx.purchase_order_decisions.create({
         data: {
           purchase_order_id: po.id,
           decided_by_user_id: BigInt(userId),
           decision: purchase_order_decisions_decision.REJECTED,
-          decision_message: dto.decisionMessage ?? null,
+          decision_message: rejectMsg,
         },
       });
 
@@ -338,6 +350,8 @@ export class SellerOrderService {
         },
       });
 
+      await releaseActiveBudgetReservationsForPurchaseOrders(tx, [po.id]);
+
       await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });
 
@@ -347,7 +361,7 @@ export class SellerOrderService {
       action: 'SELLER_ORDER_REJECT',
       targetType: 'purchase_order',
       targetId: BigInt(orderId),
-      message: dto.decisionMessage ?? null,
+      message: dto.message?.trim() || dto.decisionMessage?.trim() || null,
       metadata: null,
     });
 
@@ -385,6 +399,8 @@ export class SellerOrderService {
           updated_at: new Date(),
         },
       });
+
+      await releaseActiveBudgetReservationsForPurchaseOrders(tx, [po.id]);
 
       await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });
@@ -442,6 +458,24 @@ export class SellerOrderService {
         );
       }
 
+      const externalNo = dto.externalOrderNo?.trim();
+      if (externalNo) {
+        const clash = await tx.purchase_orders.findFirst({
+          where: {
+            platform: dto.platform,
+            external_order_no: externalNo,
+            NOT: { id: po.id },
+          },
+          select: { id: true },
+        });
+        if (clash) {
+          throw new AppException(
+            ErrorCode.CONFLICT,
+            '동일 플랫폼에서 이미 사용 중인 외부 주문번호입니다.',
+          );
+        }
+      }
+
       const existingCount = await tx.purchase_order_items.count({
         where: { purchase_order_id: po.id },
       });
@@ -471,7 +505,7 @@ export class SellerOrderService {
         data: {
           status: purchase_orders_status.PURCHASED,
           platform: dto.platform,
-          external_order_no: dto.externalOrderNo ?? null,
+          external_order_no: externalNo ? externalNo : null,
           order_url: dto.orderUrl ?? null,
           ...(shippingFee !== undefined && { shipping_fee: shippingFee }),
           ordered_at: new Date(),
@@ -480,6 +514,21 @@ export class SellerOrderService {
           updated_at: new Date(),
         },
       });
+
+      const qtyByProduct = new Map<bigint, number>();
+      for (const li of lines) {
+        if (li.product_id == null) {
+          continue;
+        }
+        const prev = qtyByProduct.get(li.product_id) ?? 0;
+        qtyByProduct.set(li.product_id, prev + li.quantity);
+      }
+      for (const [productId, qty] of qtyByProduct) {
+        await tx.product.update({
+          where: { id: productId },
+          data: { purchaseCountCache: { increment: qty } },
+        });
+      }
 
       await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });
@@ -503,7 +552,14 @@ export class SellerOrderService {
     orderId: number,
     dto: UpdateShippingDto,
   ) {
-    if (dto.shippingStatus == null && dto.deliveredAt == null) {
+    const shippingStatusTrimmed = dto.shippingStatus?.trim();
+    const hasShipping =
+      shippingStatusTrimmed != null && shippingStatusTrimmed !== '';
+    const deliveredAtRaw = dto.deliveredAt;
+    const hasDelivered =
+      deliveredAtRaw != null && String(deliveredAtRaw).trim() !== '';
+
+    if (!hasShipping && !hasDelivered) {
       throw new AppException(
         ErrorCode.BAD_REQUEST,
         'shippingStatus 또는 deliveredAt 중 하나는 필요합니다.',
@@ -533,12 +589,13 @@ export class SellerOrderService {
       await tx.purchase_orders.update({
         where: { id: po.id },
         data: {
-          ...(dto.shippingStatus != null && {
-            shipping_status: dto.shippingStatus,
+          ...(hasShipping && {
+            shipping_status: shippingStatusTrimmed,
           }),
-          ...(dto.deliveredAt != null && {
-            delivered_at: new Date(dto.deliveredAt),
-          }),
+          ...(hasDelivered &&
+            deliveredAtRaw != null && {
+              delivered_at: new Date(deliveredAtRaw),
+            }),
           updated_at: new Date(),
         },
       });
@@ -552,7 +609,7 @@ export class SellerOrderService {
       targetId: BigInt(orderId),
       message: null,
       metadata: {
-        shippingStatus: dto.shippingStatus ?? null,
+        shippingStatus: shippingStatusTrimmed ?? null,
         deliveredAt: dto.deliveredAt ?? null,
       },
     });

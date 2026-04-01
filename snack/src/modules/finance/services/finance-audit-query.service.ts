@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../../../database/prisma.service';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { assertOrgAdmin } from '../utils/assert-org-admin.util';
-import { AuditLogListQueryDto } from '../dto/audit-log-list-query.dto';
+import { PrismaService } from '@/database/prisma.service';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
+import { AuditLogListQueryDto } from '@/modules/finance/dto/audit-log-list-query.dto';
 
 @Injectable()
 export class FinanceAuditQueryService {

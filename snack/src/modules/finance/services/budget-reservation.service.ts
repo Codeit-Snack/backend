@@ -4,13 +4,14 @@ import {
   Prisma,
   purchase_orders_status,
 } from '@prisma/client';
-import { PrismaService } from '../../../database/prisma.service';
-import { AppException } from '../../../common/exceptions/app.exception';
-import { ErrorCode } from '../../../common/enums/error-code.enum';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { AuditLogService } from '../../audit/audit-log.service';
-import { assertOrgAdmin } from '../utils/assert-org-admin.util';
-import { CreateBudgetReservationDto } from '../dto/create-budget-reservation.dto';
+import { PrismaService } from '@/database/prisma.service';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { AuditLogService } from '@/modules/audit/audit-log.service';
+import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
+import { CreateBudgetReservationDto } from '@/modules/finance/dto/create-budget-reservation.dto';
+import { BudgetPeriodService } from '@/modules/finance/services/budget-period.service';
 
 const PO_BLOCK_RESERVATION: purchase_orders_status[] = [
   purchase_orders_status.REJECTED,
@@ -22,6 +23,7 @@ export class BudgetReservationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly budgetPeriod: BudgetPeriodService,
   ) {}
 
   private decStr(v: Prisma.Decimal): string {
@@ -106,6 +108,27 @@ export class BudgetReservationService {
       throw new AppException(
         ErrorCode.BAD_REQUEST,
         '예약 금액은 0보다 커야 합니다.',
+      );
+    }
+
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth() + 1;
+    const funds = await this.budgetPeriod.computeRemainingFunds(
+      organizationId,
+      y,
+      m,
+    );
+    if (!funds.hasPeriod) {
+      throw new AppException(
+        ErrorCode.BAD_REQUEST,
+        '해당 월(UTC)에 설정된 예산이 없습니다. 먼저 월별 예산을 등록한 뒤 예약하세요.',
+      );
+    }
+    if (funds.remaining.lt(reserved)) {
+      throw new AppException(
+        ErrorCode.CONFLICT,
+        '월별 가용 예산을 초과하는 예약 금액입니다.',
       );
     }
 

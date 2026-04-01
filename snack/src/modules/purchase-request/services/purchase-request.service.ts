@@ -1,21 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import {
+  OrgRole,
   Prisma,
   PurchaseRequestStatus,
   purchase_orders_status,
   type PurchaseRequest,
 } from '@prisma/client';
-import { PrismaService } from '../../../database/prisma.service';
-import { AuditLogService } from '../../audit/audit-log.service';
-import { AppException } from '../../../common/exceptions/app.exception';
-import { ErrorCode } from '../../../common/enums/error-code.enum';
-import { CreatePurchaseRequestDto } from '../dto/create-purchase-request.dto';
-import { PurchaseRequestListQueryDto } from '../dto/purchase-request-list-query.dto';
+import { PrismaService } from '@/database/prisma.service';
+import { AuditLogService } from '@/modules/audit/audit-log.service';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import { CreatePurchaseRequestDto } from '@/modules/purchase-request/dto/create-purchase-request.dto';
+import { PurchaseRequestListQueryDto } from '@/modules/purchase-request/dto/purchase-request-list-query.dto';
 import {
   PurchaseRequestDetailResponseDto,
   PurchaseRequestItemResponseDto,
   PurchaseRequestSummaryResponseDto,
-} from '../dto/purchase-request-response.dto';
+} from '@/modules/purchase-request/dto/purchase-request-response.dto';
+import { releaseActiveBudgetReservationsForPurchaseOrders } from '@/modules/finance/utils/release-budget-reservations.util';
 
 type RequestWithItems = PurchaseRequest & {
   purchase_request_items: Array<{
@@ -43,6 +45,10 @@ export class PurchaseRequestService {
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
   ) {}
+
+  private isBuyerOrgAdmin(role: OrgRole): boolean {
+    return role === OrgRole.ADMIN || role === OrgRole.SUPER_ADMIN;
+  }
 
   private decStr(v: Prisma.Decimal): string {
     return typeof v === 'string' ? v : String(v);
@@ -221,6 +227,7 @@ export class PurchaseRequestService {
     buyerOrganizationId: number,
     requesterUserId: number,
     query: PurchaseRequestListQueryDto,
+    memberRole: OrgRole,
   ): Promise<{
     data: PurchaseRequestSummaryResponseDto[];
     total: number;
@@ -234,7 +241,9 @@ export class PurchaseRequestService {
 
     const where: Prisma.PurchaseRequestWhereInput = {
       buyerOrganizationId: BigInt(buyerOrganizationId),
-      requesterUserId: BigInt(requesterUserId),
+      ...(this.isBuyerOrgAdmin(memberRole)
+        ? {}
+        : { requesterUserId: BigInt(requesterUserId) }),
       ...(query.status != null && { status: query.status }),
     };
 
@@ -264,12 +273,15 @@ export class PurchaseRequestService {
     buyerOrganizationId: number,
     requesterUserId: number,
     id: number,
+    memberRole: OrgRole,
   ): Promise<PurchaseRequestDetailResponseDto | null> {
     const row = await this.prisma.purchaseRequest.findFirst({
       where: {
         id: BigInt(id),
         buyerOrganizationId: BigInt(buyerOrganizationId),
-        requesterUserId: BigInt(requesterUserId),
+        ...(this.isBuyerOrgAdmin(memberRole)
+          ? {}
+          : { requesterUserId: BigInt(requesterUserId) }),
       },
       include: {
         purchase_request_items: {
@@ -284,12 +296,15 @@ export class PurchaseRequestService {
     buyerOrganizationId: number,
     requesterUserId: number,
     id: number,
+    memberRole: OrgRole,
   ): Promise<PurchaseRequestDetailResponseDto> {
     const existing = await this.prisma.purchaseRequest.findFirst({
       where: {
         id: BigInt(id),
         buyerOrganizationId: BigInt(buyerOrganizationId),
-        requesterUserId: BigInt(requesterUserId),
+        ...(this.isBuyerOrgAdmin(memberRole)
+          ? {}
+          : { requesterUserId: BigInt(requesterUserId) }),
       },
       include: {
         purchase_request_items: {
@@ -326,6 +341,19 @@ export class PurchaseRequestService {
     }
 
     const detail = await this.prisma.$transaction(async (tx) => {
+      const posToCancel = await tx.purchase_orders.findMany({
+        where: {
+          purchase_request_id: existing.id,
+          status: {
+            in: [
+              purchase_orders_status.PENDING_SELLER_APPROVAL,
+              purchase_orders_status.APPROVED,
+            ],
+          },
+        },
+        select: { id: true },
+      });
+
       await tx.purchase_orders.updateMany({
         where: {
           purchase_request_id: existing.id,
@@ -341,6 +369,11 @@ export class PurchaseRequestService {
           updated_at: new Date(),
         },
       });
+
+      await releaseActiveBudgetReservationsForPurchaseOrders(
+        tx,
+        posToCancel.map((p) => p.id),
+      );
 
       const updated = await tx.purchaseRequest.update({
         where: { id: existing.id },

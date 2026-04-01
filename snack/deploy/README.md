@@ -23,7 +23,9 @@ RDS 등 외부 DB면 컨테이너/EC2에서 도달 가능한 호스트로 `DATAB
 docker compose -f deploy/docker-compose.ec2.yml up -d --build
 ```
 
-컨테이너 부팅 시 `prisma migrate deploy` 실행(환경변수 `SKIP_MIGRATIONS=true` 로 끌 수 있음).
+- 같은 스택에 **Redis 컨테이너**가 포함됩니다(호스트에 Redis 포트를 열지 않음, 스택 내부 통신만). API는 compose 기본값으로 `REDIS_HOST=redis`, `REDIS_PORT=6379`이며 `.env`의 `REDIS_*`로 바꿀 수 있습니다.  
+- 외부 ElastiCache만 쓰려면 compose에서 `redis` 서비스와 `REDIS_*` override를 제거하고 `.env`만 맞추면 됩니다.  
+- API 컨테이너 부팅 시 `prisma migrate deploy` 실행(`SKIP_MIGRATIONS=true` 로 생략 가능).
 
 EC2 내부 확인: `curl -sS http://127.0.0.1:3000/api/health`
 

@@ -1,11 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
-import { FinanceAuditQueryService } from '../services/finance-audit-query.service';
-import { AuditLogListQueryDto } from '../dto/audit-log-list-query.dto';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { FinanceAuditQueryService } from '@/modules/finance/services/finance-audit-query.service';
+import { AuditLogListQueryDto } from '@/modules/finance/dto/audit-log-list-query.dto';
 
 @ApiTags('Audit')
 @ApiBearerAuth('access-token')

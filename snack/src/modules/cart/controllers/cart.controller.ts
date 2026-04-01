@@ -17,13 +17,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CartService } from '../services/cart.service';
-import { AddCartItemDto } from '../dto/add-cart-item.dto';
-import { UpdateCartItemQuantityDto } from '../dto/update-cart-item-quantity.dto';
-import { CartResponseDto } from '../dto/cart-response.dto';
-import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
-import { UserId } from '../../catalog/decorators/catalog-context.decorator';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { CartService } from '@/modules/cart/services/cart.service';
+import { AddCartItemDto } from '@/modules/cart/dto/add-cart-item.dto';
+import { UpdateCartItemQuantityDto } from '@/modules/cart/dto/update-cart-item-quantity.dto';
+import { CartResponseDto } from '@/modules/cart/dto/cart-response.dto';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { UserId } from '@/modules/catalog/decorators/catalog-context.decorator';
 
 @ApiTags('Cart')
 @ApiBearerAuth('access-token')
