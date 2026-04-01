@@ -13,7 +13,17 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
+
     "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"],
+      "@common/*": ["src/common/*"],
+      "@auth/*": ["src/auth/*"],
+      "@users/*": ["src/users/*"],
+      "@organizations/*": ["src/organizations/*"],
+      "@prisma/*": ["src/prisma/*"]
+    },
+
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,

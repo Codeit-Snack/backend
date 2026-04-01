@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.github
+.env
+.env.*
+!.env.example
+coverage
+*.md
+.editorconfig
+.prettierrc
+eslint.config.mjs
+test
+*.spec.ts
+.vscode

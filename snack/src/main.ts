@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ErrorInterceptor } from './common/interceptors/error.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 async function bootstrap() {
@@ -16,10 +17,6 @@ async function bootstrap() {
 
   const port = Number(configService.get<string>('PORT', '3000'));
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
-  const frontendUrl = configService.get<string>(
-    'FRONTEND_URL',
-    'http://localhost:5173',
-  );
   const throttleTtl = Number(configService.get<string>('THROTTLE_TTL', '60'));
   const throttleLimit = Number(
     configService.get<string>('THROTTLE_LIMIT', '10'),
@@ -36,7 +33,7 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: [frontendUrl],
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -63,16 +60,69 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(new HttpExceptionFilter(nodeEnv));
-  app.useGlobalInterceptors(new ResponseInterceptor());
+  app.useGlobalInterceptors(
+    new ErrorInterceptor(nodeEnv),
+    new ResponseInterceptor(),
+  );
+
+  const swaggerDescription = [
+    'SNACK REST API — 인증·장바구니·구매 요청·판매자 주문·예산 등.',
+    '',
+    '**성공 응답** `{ "success": true, "data": ... }` (전역 인터셉터).',
+    '',
+    '**인증** `Authorization: Bearer <accessToken>`. UI **Authorize**에 토큰 입력.',
+    'JWT `organizationId` = 현재 조직(장바구니·구매·판매 주문·예산 등).',
+    '',
+    '**스펙** `/api/openapi.json` · `/api/openapi.yaml` · UI `/api/docs`',
+    '',
+    '팀 온보딩: 저장소 `docs/TEAM.md`',
+  ].join('\n');
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SNACK API')
-    .setDescription('SNACK backend API documentation')
+    .setDescription(swaggerDescription)
     .setVersion('1.0.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: '로그인 응답의 accessToken',
+        in: 'header',
+      },
+      'access-token',
+    )
+    .addTag('Auth', '회원가입·로그인·토큰·비밀번호')
+    .addTag('Users', '사용자')
+    .addTag('Organizations', '조직·멤버')
+    .addTag('Invitations', '초대')
+    .addTag('Categories', '카탈로그 카테고리')
+    .addTag('Products', '판매 상품')
+    .addTag('Cart', '장바구니')
+    .addTag('PurchaseRequest', '구매 요청(구매자)')
+    .addTag('SellerOrder', '판매자 주문(PO)')
+    .addTag('Budget', '예산·예약')
+    .addTag('Expenses', '지출')
+    .addTag('Audit', '감사 로그 조회')
+    .addTag('Mail', '메일 테스트')
+    .addTag('Health', '헬스체크')
+    .addTag('App', '기타')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+
+  SwaggerModule.setup('docs', app, document, {
+    useGlobalPrefix: true,
+    jsonDocumentUrl: 'openapi.json',
+    yamlDocumentUrl: 'openapi.yaml',
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'list',
+      filter: true,
+      showRequestDuration: true,
+    },
+  });
 
   await app.listen(port);
 }
