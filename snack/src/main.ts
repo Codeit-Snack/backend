@@ -1,6 +1,7 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
@@ -11,16 +12,23 @@ import { ErrorInterceptor } from '@/common/interceptors/error.interceptor';
 import { ResponseInterceptor } from '@/common/interceptors/response.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   const configService = app.get(ConfigService);
 
-  const port = Number(configService.get<string>('PORT', '3000'));
+  const port = Number(
+    process.env.PORT ?? configService.get<string>('PORT', '3000'),
+  );
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
   const throttleTtl = Number(configService.get<string>('THROTTLE_TTL', '60'));
   const throttleLimit = Number(
     configService.get<string>('THROTTLE_LIMIT', '10'),
   );
+
+  // Render 등 리버스 프록시: X-Forwarded-For 신뢰. 안 켜면 express-rate-limit이 ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+  if (nodeEnv === 'production') {
+    app.set('trust proxy', 1);
+  }
 
   app.setGlobalPrefix('api');
 
@@ -124,6 +132,7 @@ async function bootstrap() {
     },
   });
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
+  Logger.log(`HTTP ${port} (0.0.0.0)`, 'Bootstrap');
 }
 void bootstrap();
