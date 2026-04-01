@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
@@ -13,149 +12,132 @@ import {
 import {
   ApiBearerAuth,
   ApiOperation,
-  ApiParam,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
-import { UserId } from '@/modules/catalog/decorators/catalog-context.decorator';
-import { SellerOrderService } from '@/modules/seller-order/services/seller-order.service';
-import { SellerOrderListQueryDto } from '@/modules/seller-order/dto/seller-order-list-query.dto';
-import { ApproveSellerOrderDto } from '@/modules/seller-order/dto/approve-seller-order.dto';
-import { RejectSellerOrderDto } from '@/modules/seller-order/dto/reject-seller-order.dto';
-import { RecordPurchaseDto } from '@/modules/seller-order/dto/record-purchase.dto';
-import { UpdateShippingDto } from '@/modules/seller-order/dto/update-shipping.dto';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
+import type { JwtPayload } from '../../../common/types/jwt-payload.type';
+import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
+import { SellerOrderService } from '../services/seller-order.service';
+import { SellerOrderListQueryDto } from '../dto/seller-order-list-query.dto';
+import { ApproveSellerOrderDto } from '../dto/approve-seller-order.dto';
+import { RejectSellerOrderDto } from '../dto/reject-seller-order.dto';
+import { RecordPurchaseDto } from '../dto/record-purchase.dto';
+import { UpdateShippingDto } from '../dto/update-shipping.dto';
+import { CancelSellerOrderDto } from '../dto/cancel-seller-order.dto';
 
-@ApiTags('SellerOrder')
+@ApiTags('SellerOrders')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
-@Controller('seller/orders')
+@Controller('seller/purchase-orders')
 export class SellerOrderController {
   constructor(private readonly sellerOrderService: SellerOrderService) {}
 
   @Get()
   @ApiOperation({
-    summary: '판매자 조직 기준 구매 주문(PO) 목록',
+    summary: '판매자 주문 목록',
     description:
-      'JWT의 organizationId가 **판매자 조직**이어야 합니다. 페이지네이션·status 필터.',
+      'JWT의 organizationId(판매자 조직) 기준. 조회는 조직 소속 멤버 모두 가능.',
   })
-  @ApiResponse({
-    status: 200,
-    description:
-      '`{ success, data: { data[], total, page, limit, totalPages } }`',
-  })
-  @ApiResponse({ status: 401, description: '미인증' })
+  @ApiResponse({ status: 200, description: '페이지네이션 목록' })
   list(
-    @OrganizationId() organizationId: number,
+    @OrganizationId() sellerOrganizationId: number,
     @Query() query: SellerOrderListQueryDto,
   ) {
-    return this.sellerOrderService.list(organizationId, query);
+    return this.sellerOrderService.findAll(sellerOrganizationId, query);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: '판매자 주문 상세 (요청 라인·PO 라인·의사결정)' })
-  @ApiParam({ name: 'id', description: 'purchase_orders.id' })
-  @ApiResponse({ status: 200, description: '`{ success, data }` 상세 객체' })
-  @ApiResponse({ status: 404, description: '없거나 다른 판매자 조직 주문' })
-  async getOne(
-    @OrganizationId() organizationId: number,
+  @ApiOperation({ summary: '판매자 주문 상세' })
+  @ApiResponse({ status: 404, description: '없음' })
+  detail(
+    @OrganizationId() sellerOrganizationId: number,
     @Param('id', ParseIntPipe) id: number,
   ) {
-    const row = await this.sellerOrderService.findOne(organizationId, id);
-    if (!row) {
-      throw new NotFoundException('주문을 찾을 수 없습니다.');
-    }
-    return row;
+    return this.sellerOrderService.findOne(sellerOrganizationId, id);
   }
 
   @Post(':id/approve')
   @ApiOperation({
-    summary: '판매자 승인 (PENDING_SELLER_APPROVAL → APPROVED)',
-    description: '구매 요청(PR) 상태가 판매자별 PO에 따라 롤업됩니다.',
+    summary: '주문 승인',
+    description:
+      'PENDING_SELLER_APPROVAL → APPROVED. 구매 요청 라인으로 purchase_order_items 생성.',
   })
-  @ApiParam({ name: 'id' })
-  @ApiResponse({ status: 200, description: '승인 후 상세' })
-  @ApiResponse({ status: 409, description: '이미 처리된 상태' })
   approve(
-    @OrganizationId() organizationId: number,
-    @UserId() userId: number,
+    @OrganizationId() sellerOrganizationId: number,
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
     @Body() dto: ApproveSellerOrderDto,
   ) {
-    return this.sellerOrderService.approve(organizationId, userId, id, dto);
+    return this.sellerOrderService.approve(sellerOrganizationId, id, user, dto);
   }
 
   @Post(':id/reject')
-  @ApiOperation({ summary: '판매자 거절' })
-  @ApiParam({ name: 'id' })
-  @ApiResponse({ status: 200, description: '거절 후 상세' })
-  @ApiResponse({ status: 409, description: '대기 상태가 아님' })
+  @ApiOperation({
+    summary: '주문 거절',
+    description:
+      '동일 구매 요청의 다른 대기 주문은 CANCELED 처리. 구매 요청은 REJECTED로 갱신.',
+  })
   reject(
-    @OrganizationId() organizationId: number,
-    @UserId() userId: number,
+    @OrganizationId() sellerOrganizationId: number,
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
     @Body() dto: RejectSellerOrderDto,
   ) {
-    return this.sellerOrderService.reject(organizationId, userId, id, dto);
-  }
-
-  @Post(':id/cancel')
-  @ApiOperation({ summary: '판매자 취소 (대기·승인 → CANCELED)' })
-  @ApiParam({ name: 'id' })
-  @ApiResponse({ status: 200, description: '취소 후 상세' })
-  @ApiResponse({ status: 409, description: '구매완료 등 취소 불가' })
-  cancel(
-    @OrganizationId() organizationId: number,
-    @UserId() userId: number,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
-    return this.sellerOrderService.cancel(organizationId, userId, id);
+    return this.sellerOrderService.reject(sellerOrganizationId, id, user, dto);
   }
 
   @Post(':id/record-purchase')
   @ApiOperation({
-    summary: '실구매 기록 (APPROVED → PURCHASED)',
+    summary: '실제 구매 처리',
     description:
-      '해당 판매자의 purchase_request_items로 purchase_order_items를 최초 1회 생성합니다.',
+      'APPROVED → PURCHASED. 외부 쇼핑몰 주문번호·URL 기록. 플랫폼+외부주문번호 유일.',
   })
-  @ApiParam({ name: 'id' })
-  @ApiResponse({ status: 200, description: '기록 후 상세' })
-  @ApiResponse({ status: 409, description: '승인 상태가 아님' })
   recordPurchase(
-    @OrganizationId() organizationId: number,
-    @UserId() userId: number,
+    @OrganizationId() sellerOrganizationId: number,
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
     @Body() dto: RecordPurchaseDto,
   ) {
     return this.sellerOrderService.recordPurchase(
-      organizationId,
-      userId,
+      sellerOrganizationId,
       id,
+      user,
       dto,
     );
   }
 
   @Patch(':id/shipping')
   @ApiOperation({
-    summary: '배송 상태·배송 완료 시각',
-    description: 'PURCHASED 주문만 수정 가능.',
+    summary: '배송 상태 업데이트',
+    description: 'APPROVED 또는 PURCHASED 주문만.',
   })
-  @ApiParam({ name: 'id' })
-  @ApiResponse({ status: 200, description: '갱신 후 상세' })
-  @ApiResponse({ status: 400, description: '둘 다 비어 있음' })
-  @ApiResponse({ status: 409, description: '구매완료 상태가 아님' })
   updateShipping(
-    @OrganizationId() organizationId: number,
-    @UserId() userId: number,
+    @OrganizationId() sellerOrganizationId: number,
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
     @Body() dto: UpdateShippingDto,
   ) {
     return this.sellerOrderService.updateShipping(
-      organizationId,
-      userId,
+      sellerOrganizationId,
       id,
+      user,
       dto,
     );
+  }
+
+  @Post(':id/cancel')
+  @ApiOperation({
+    summary: '판매자 주문 취소',
+    description: 'PENDING_SELLER_APPROVAL 또는 APPROVED만 취소 가능.',
+  })
+  cancel(
+    @OrganizationId() sellerOrganizationId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CancelSellerOrderDto,
+  ) {
+    return this.sellerOrderService.cancel(sellerOrganizationId, id, user, dto);
   }
 }
