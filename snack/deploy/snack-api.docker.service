@@ -1,0 +1,23 @@
+# /etc/systemd/system/snack-api.service
+# 저장소 루트(package.json 있는 디렉터리)를 WorkingDirectory 로 맞출 것.
+# 예: git clone ... /opt/snack 이면 WorkingDirectory=/opt/snack
+#
+# sudo systemctl daemon-reload
+# sudo systemctl enable --now snack-api.service
+
+[Unit]
+Description=SNACK API (Docker Compose)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/snack
+ExecStart=/usr/bin/docker compose -f deploy/docker-compose.ec2.yml up -d --build
+ExecStop=/usr/bin/docker compose -f deploy/docker-compose.ec2.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
