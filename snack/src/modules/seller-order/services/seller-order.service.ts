@@ -1,169 +1,115 @@
 import { Injectable } from '@nestjs/common';
 import {
-  OrgRole,
   Prisma,
   PurchaseRequestStatus,
   purchase_order_decisions_decision,
   purchase_orders_status,
 } from '@prisma/client';
-import { PrismaService } from '../../../database/prisma.service';
-import { AppException } from '../../../common/exceptions/app.exception';
-import { ErrorCode } from '../../../common/enums/error-code.enum';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { SellerOrderListQueryDto } from '../dto/seller-order-list-query.dto';
-import { ApproveSellerOrderDto } from '../dto/approve-seller-order.dto';
-import { RejectSellerOrderDto } from '../dto/reject-seller-order.dto';
-import { RecordPurchaseDto } from '../dto/record-purchase.dto';
-import { UpdateShippingDto } from '../dto/update-shipping.dto';
-import { CancelSellerOrderDto } from '../dto/cancel-seller-order.dto';
-
-const MUTABLE_PR_STATUSES: PurchaseRequestStatus[] = [
-  PurchaseRequestStatus.OPEN,
-  PurchaseRequestStatus.PARTIALLY_APPROVED,
-  PurchaseRequestStatus.READY_TO_PURCHASE,
-];
+import { PrismaService } from '@/database/prisma.service';
+import { AuditLogService } from '@/modules/audit/audit-log.service';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import { SellerOrderListQueryDto } from '@/modules/seller-order/dto/seller-order-list-query.dto';
+import { ApproveSellerOrderDto } from '@/modules/seller-order/dto/approve-seller-order.dto';
+import { RejectSellerOrderDto } from '@/modules/seller-order/dto/reject-seller-order.dto';
+import { RecordPurchaseDto } from '@/modules/seller-order/dto/record-purchase.dto';
+import { UpdateShippingDto } from '@/modules/seller-order/dto/update-shipping.dto';
+import { releaseActiveBudgetReservationsForPurchaseOrders } from '@/modules/finance/utils/release-budget-reservations.util';
 
 @Injectable()
 export class SellerOrderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   private decStr(v: Prisma.Decimal): string {
     return typeof v === 'string' ? v : String(v);
   }
 
-  private assertSellerAdmin(role: OrgRole): void {
-    if (role !== OrgRole.ADMIN && role !== OrgRole.SUPER_ADMIN) {
-      throw new AppException(
-        ErrorCode.FORBIDDEN,
-        '판매자 주문 처리는 조직 관리자·최고 관리자만 가능합니다.',
-      );
+  private computeRollup(
+    statuses: purchase_orders_status[],
+    current: PurchaseRequestStatus,
+  ): PurchaseRequestStatus | null {
+    if (
+      current === PurchaseRequestStatus.CANCELED ||
+      current === PurchaseRequestStatus.PURCHASED
+    ) {
+      return null;
     }
+    if (statuses.length === 0) {
+      return null;
+    }
+    if (
+      statuses.some((s) => s === purchase_orders_status.PENDING_SELLER_APPROVAL)
+    ) {
+      return PurchaseRequestStatus.OPEN;
+    }
+    if (statuses.every((s) => s === purchase_orders_status.CANCELED)) {
+      return PurchaseRequestStatus.CANCELED;
+    }
+    if (statuses.every((s) => s === purchase_orders_status.REJECTED)) {
+      return PurchaseRequestStatus.REJECTED;
+    }
+    if (statuses.every((s) => s === purchase_orders_status.PURCHASED)) {
+      return PurchaseRequestStatus.PURCHASED;
+    }
+    const onlyApprovedOrPurchased = statuses.every(
+      (s) =>
+        s === purchase_orders_status.APPROVED ||
+        s === purchase_orders_status.PURCHASED,
+    );
+    if (onlyApprovedOrPurchased) {
+      return PurchaseRequestStatus.READY_TO_PURCHASE;
+    }
+    return PurchaseRequestStatus.PARTIALLY_APPROVED;
   }
 
-  private assertPurchaseRequestMutable(status: PurchaseRequestStatus): void {
-    if (!MUTABLE_PR_STATUSES.includes(status)) {
-      throw new AppException(
-        ErrorCode.CONFLICT,
-        '구매 요청이 더 이상 처리할 수 없는 상태입니다.',
-      );
-    }
-  }
-
-  /** 구매 요청에 속한 모든 판매자 주문 상태를 구매 요청 상태에 반영 */
-  private async rollupPurchaseRequestStatus(
+  private async syncPurchaseRequestStatus(
     tx: Prisma.TransactionClient,
     purchaseRequestId: bigint,
   ): Promise<void> {
     const pr = await tx.purchaseRequest.findUnique({
       where: { id: purchaseRequestId },
-      include: { purchase_orders: true },
+      select: { status: true },
     });
-    if (!pr || pr.status === PurchaseRequestStatus.CANCELED) {
+    if (!pr) {
       return;
     }
-
-    const pos = pr.purchase_orders;
-    const S = purchase_orders_status;
-
-    if (pos.some((p) => p.status === S.REJECTED)) {
-      await tx.purchaseRequest.update({
-        where: { id: purchaseRequestId },
-        data: { status: PurchaseRequestStatus.REJECTED },
-      });
-      return;
-    }
-
-    if (pos.length === 0) {
-      return;
-    }
-
-    if (pos.every((p) => p.status === S.PURCHASED)) {
-      await tx.purchaseRequest.update({
-        where: { id: purchaseRequestId },
-        data: { status: PurchaseRequestStatus.PURCHASED },
-      });
-      return;
-    }
-
-    if (pos.every((p) => p.status === S.PENDING_SELLER_APPROVAL)) {
-      await tx.purchaseRequest.update({
-        where: { id: purchaseRequestId },
-        data: { status: PurchaseRequestStatus.OPEN },
-      });
-      return;
-    }
-
-    const hasPending = pos.some((p) => p.status === S.PENDING_SELLER_APPROVAL);
-    if (hasPending) {
-      await tx.purchaseRequest.update({
-        where: { id: purchaseRequestId },
-        data: { status: PurchaseRequestStatus.PARTIALLY_APPROVED },
-      });
-      return;
-    }
-
-    const terminalStatuses: purchase_orders_status[] = [
-      S.APPROVED,
-      S.PURCHASED,
-      S.CANCELED,
-    ];
-    const terminalMix = pos.every((p) => terminalStatuses.includes(p.status));
-    if (!terminalMix) {
-      await tx.purchaseRequest.update({
-        where: { id: purchaseRequestId },
-        data: { status: PurchaseRequestStatus.PARTIALLY_APPROVED },
-      });
-      return;
-    }
-
-    const hasApproved = pos.some((p) => p.status === S.APPROVED);
-    const hasPurchased = pos.some((p) => p.status === S.PURCHASED);
-
-    if (hasApproved && hasPurchased) {
-      await tx.purchaseRequest.update({
-        where: { id: purchaseRequestId },
-        data: { status: PurchaseRequestStatus.PARTIALLY_APPROVED },
-      });
-      return;
-    }
-
-    if (hasApproved && !hasPurchased) {
-      await tx.purchaseRequest.update({
-        where: { id: purchaseRequestId },
-        data: { status: PurchaseRequestStatus.READY_TO_PURCHASE },
-      });
-      return;
-    }
-
-    await tx.purchaseRequest.update({
-      where: { id: purchaseRequestId },
-      data: { status: PurchaseRequestStatus.PARTIALLY_APPROVED },
+    const pos = await tx.purchase_orders.findMany({
+      where: { purchase_request_id: purchaseRequestId },
+      select: { status: true },
     });
+    const next = this.computeRollup(
+      pos.map((p) => p.status),
+      pr.status,
+    );
+    if (next != null && next !== pr.status) {
+      await tx.purchaseRequest.update({
+        where: { id: purchaseRequestId },
+        data: { status: next },
+      });
+    }
   }
 
-  private toOrderSummary(
-    row: {
-      id: bigint;
-      purchase_request_id: bigint;
-      buyer_organization_id: bigint;
+  async list(
+    sellerOrganizationId: number,
+    query: SellerOrderListQueryDto,
+  ): Promise<{
+    data: Array<{
+      id: number;
       status: purchase_orders_status;
-      items_amount: Prisma.Decimal;
-      created_at: Date;
-    },
-    lineCount: number,
-  ) {
-    return {
-      id: Number(row.id),
-      purchaseRequestId: Number(row.purchase_request_id),
-      buyerOrganizationId: Number(row.buyer_organization_id),
-      status: row.status,
-      itemsAmount: this.decStr(row.items_amount),
-      lineCount,
-      createdAt: row.created_at.toISOString(),
-    };
-  }
-
-  async findAll(sellerOrganizationId: number, query: SellerOrderListQueryDto) {
+      purchaseRequestId: number;
+      buyerOrganizationId: number;
+      itemsAmount: string;
+      createdAt: string;
+      purchaseRequestStatus: PurchaseRequestStatus;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
@@ -180,16 +126,24 @@ export class SellerOrderService {
         skip,
         take: limit,
         include: {
-          _count: { select: { purchase_order_items: true } },
+          purchase_requests: {
+            select: { id: true, status: true },
+          },
         },
       }),
       this.prisma.purchase_orders.count({ where }),
     ]);
 
     return {
-      data: rows.map((r) =>
-        this.toOrderSummary(r, r._count.purchase_order_items),
-      ),
+      data: rows.map((r) => ({
+        id: Number(r.id),
+        status: r.status,
+        purchaseRequestId: Number(r.purchase_request_id),
+        buyerOrganizationId: Number(r.buyer_organization_id),
+        itemsAmount: this.decStr(r.items_amount),
+        createdAt: r.created_at.toISOString(),
+        purchaseRequestStatus: r.purchase_requests.status,
+      })),
       total,
       page,
       limit,
@@ -197,35 +151,32 @@ export class SellerOrderService {
     };
   }
 
-  async findOne(
-    sellerOrganizationId: number,
-    orderId: number,
-    tx?: Prisma.TransactionClient,
-  ) {
-    const db = tx ?? this.prisma;
-    const row = await db.purchase_orders.findFirst({
+  async findOne(sellerOrganizationId: number, id: number) {
+    const row = await this.prisma.purchase_orders.findFirst({
       where: {
-        id: BigInt(orderId),
+        id: BigInt(id),
         seller_organization_id: BigInt(sellerOrganizationId),
       },
       include: {
-        purchase_order_items: { orderBy: { id: 'asc' } },
-        purchase_requests: true,
-        organizations_purchase_orders_buyer_organization_idToorganizations: {
-          select: { id: true, name: true },
+        purchase_requests: {
+          select: {
+            id: true,
+            status: true,
+            requestMessage: true,
+            totalAmount: true,
+            requestedAt: true,
+            buyerOrganizationId: true,
+          },
         },
-        purchase_order_decisions: { orderBy: { decided_at: 'desc' }, take: 5 },
+        purchase_order_items: { orderBy: { id: 'asc' } },
+        purchase_order_decisions: { orderBy: { decided_at: 'desc' } },
       },
     });
-
     if (!row) {
-      throw new AppException(
-        ErrorCode.RESOURCE_NOT_FOUND,
-        '주문을 찾을 수 없습니다.',
-      );
+      return null;
     }
 
-    const requestLines = await db.purchase_request_items.findMany({
+    const requestLines = await this.prisma.purchase_request_items.findMany({
       where: {
         purchase_request_id: row.purchase_request_id,
         seller_organization_id: BigInt(sellerOrganizationId),
@@ -233,363 +184,207 @@ export class SellerOrderService {
       orderBy: { id: 'asc' },
     });
 
-    const buyer =
-      row.organizations_purchase_orders_buyer_organization_idToorganizations;
-
     return {
       id: Number(row.id),
-      purchaseRequestId: Number(row.purchase_request_id),
-      purchaseRequestStatus: row.purchase_requests.status,
-      buyerOrganizationId: Number(row.buyer_organization_id),
-      buyerOrganizationName: buyer.name,
-      sellerOrganizationId: Number(row.seller_organization_id),
       status: row.status,
       platform: row.platform,
       externalOrderNo: row.external_order_no,
       orderUrl: row.order_url,
       itemsAmount: this.decStr(row.items_amount),
       shippingFee: this.decStr(row.shipping_fee),
-      approvedAt: row.approved_at?.toISOString() ?? null,
-      rejectedAt: row.rejected_at?.toISOString() ?? null,
-      orderedAt: row.ordered_at?.toISOString() ?? null,
       shippingStatus: row.shipping_status,
       deliveredAt: row.delivered_at?.toISOString() ?? null,
       note: row.note,
+      approvedAt: row.approved_at?.toISOString() ?? null,
+      rejectedAt: row.rejected_at?.toISOString() ?? null,
+      orderedAt: row.ordered_at?.toISOString() ?? null,
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
-      requestLines: requestLines.map((l) => ({
-        id: Number(l.id),
-        productId: l.product_id != null ? Number(l.product_id) : null,
-        productNameSnapshot: l.product_name_snapshot,
-        productUrlSnapshot: l.product_url_snapshot,
-        unitPriceSnapshot: this.decStr(l.unit_price_snapshot),
-        quantity: l.quantity,
-        lineTotal: this.decStr(l.line_total),
+      purchaseRequest: {
+        id: Number(row.purchase_requests.id),
+        status: row.purchase_requests.status,
+        requestMessage: row.purchase_requests.requestMessage,
+        totalAmount: this.decStr(row.purchase_requests.totalAmount),
+        requestedAt: row.purchase_requests.requestedAt.toISOString(),
+        buyerOrganizationId: Number(row.purchase_requests.buyerOrganizationId),
+      },
+      requestLineItems: requestLines.map((li) => ({
+        id: Number(li.id),
+        productId: li.product_id != null ? Number(li.product_id) : null,
+        productNameSnapshot: li.product_name_snapshot,
+        productUrlSnapshot: li.product_url_snapshot,
+        unitPriceSnapshot: this.decStr(li.unit_price_snapshot),
+        quantity: li.quantity,
+        lineTotal: this.decStr(li.line_total),
       })),
-      orderLines: row.purchase_order_items.map((l) => ({
-        id: Number(l.id),
+      orderItems: row.purchase_order_items.map((oi) => ({
+        id: Number(oi.id),
         purchaseRequestItemId:
-          l.purchase_request_item_id != null
-            ? Number(l.purchase_request_item_id)
+          oi.purchase_request_item_id != null
+            ? Number(oi.purchase_request_item_id)
             : null,
-        productId: l.product_id != null ? Number(l.product_id) : null,
-        productNameSnapshot: l.product_name_snapshot,
-        productUrlSnapshot: l.product_url_snapshot,
-        unitPriceSnapshot: this.decStr(l.unit_price_snapshot),
-        quantity: l.quantity,
-        lineTotal: this.decStr(l.line_total),
-        createdAt: l.created_at.toISOString(),
+        productNameSnapshot: oi.product_name_snapshot,
+        quantity: oi.quantity,
+        lineTotal: this.decStr(oi.line_total),
       })),
-      recentDecisions: row.purchase_order_decisions.map((d) => ({
+      decisions: row.purchase_order_decisions.map((d) => ({
         decision: d.decision,
         message: d.decision_message,
         decidedAt: d.decided_at.toISOString(),
-        decidedByUserId: Number(d.decided_by_user_id),
       })),
     };
   }
 
   async approve(
     sellerOrganizationId: number,
+    userId: number,
     orderId: number,
-    currentUser: JwtPayload,
     dto: ApproveSellerOrderDto,
   ) {
-    this.assertSellerAdmin(currentUser.role);
-
-    return this.prisma.$transaction(async (tx) => {
-      const row = await tx.purchase_orders.findFirst({
+    await this.prisma.$transaction(async (tx) => {
+      const po = await tx.purchase_orders.findFirst({
         where: {
           id: BigInt(orderId),
           seller_organization_id: BigInt(sellerOrganizationId),
         },
-        include: {
-          purchase_requests: true,
-          purchase_order_items: true,
-        },
       });
-
-      if (!row) {
+      if (!po) {
         throw new AppException(
           ErrorCode.RESOURCE_NOT_FOUND,
           '주문을 찾을 수 없습니다.',
         );
       }
-
-      this.assertPurchaseRequestMutable(row.purchase_requests.status);
-
-      if (row.status !== purchase_orders_status.PENDING_SELLER_APPROVAL) {
+      if (po.status !== purchase_orders_status.PENDING_SELLER_APPROVAL) {
         throw new AppException(
           ErrorCode.CONFLICT,
           '승인할 수 있는 상태가 아닙니다.',
         );
       }
 
-      if (row.purchase_order_items.length > 0) {
-        throw new AppException(
-          ErrorCode.CONFLICT,
-          '이미 승인 처리된 주문입니다.',
-        );
-      }
-
-      const lines = await tx.purchase_request_items.findMany({
-        where: {
-          purchase_request_id: row.purchase_request_id,
-          seller_organization_id: BigInt(sellerOrganizationId),
-        },
-        orderBy: { id: 'asc' },
-      });
-
-      if (lines.length === 0) {
-        throw new AppException(
-          ErrorCode.BAD_REQUEST,
-          '연결된 구매 요청 라인이 없습니다.',
-        );
-      }
-
-      await tx.purchase_order_items.createMany({
-        data: lines.map((pri) => ({
-          purchase_order_id: row.id,
-          purchase_request_item_id: pri.id,
-          product_id: pri.product_id,
-          product_name_snapshot: pri.product_name_snapshot,
-          product_url_snapshot: pri.product_url_snapshot,
-          unit_price_snapshot: pri.unit_price_snapshot,
-          quantity: pri.quantity,
-          line_total: pri.line_total,
-        })),
-      });
-
-      const shippingFee =
-        dto.shippingFee != null
-          ? new Prisma.Decimal(dto.shippingFee)
-          : row.shipping_fee;
-
-      await tx.purchase_orders.update({
-        where: { id: row.id },
-        data: {
-          status: purchase_orders_status.APPROVED,
-          approved_at: new Date(),
-          shipping_fee: shippingFee,
-        },
-      });
+      const decisionMsg = dto.decisionMessage?.trim() || null;
 
       await tx.purchase_order_decisions.create({
         data: {
-          purchase_order_id: row.id,
-          decided_by_user_id: BigInt(currentUser.sub),
+          purchase_order_id: po.id,
+          decided_by_user_id: BigInt(userId),
           decision: purchase_order_decisions_decision.APPROVED,
+          decision_message: decisionMsg,
         },
       });
 
-      await this.rollupPurchaseRequestStatus(tx, row.purchase_request_id);
+      const shippingFee =
+        dto.shippingFee != null && dto.shippingFee !== ''
+          ? new Prisma.Decimal(dto.shippingFee)
+          : undefined;
 
-      return this.findOne(sellerOrganizationId, orderId, tx);
+      await tx.purchase_orders.update({
+        where: { id: po.id },
+        data: {
+          status: purchase_orders_status.APPROVED,
+          approved_at: new Date(),
+          updated_at: new Date(),
+          ...(shippingFee !== undefined && { shipping_fee: shippingFee }),
+        },
+      });
+
+      await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });
+
+    await this.auditLog.log({
+      organizationId: BigInt(sellerOrganizationId),
+      actorUserId: BigInt(userId),
+      action: 'SELLER_ORDER_APPROVE',
+      targetType: 'purchase_order',
+      targetId: BigInt(orderId),
+      message: null,
+      metadata: null,
+    });
+
+    return this.findOne(sellerOrganizationId, orderId);
   }
 
   async reject(
     sellerOrganizationId: number,
+    userId: number,
     orderId: number,
-    currentUser: JwtPayload,
     dto: RejectSellerOrderDto,
   ) {
-    this.assertSellerAdmin(currentUser.role);
-
-    return this.prisma.$transaction(async (tx) => {
-      const row = await tx.purchase_orders.findFirst({
+    await this.prisma.$transaction(async (tx) => {
+      const po = await tx.purchase_orders.findFirst({
         where: {
           id: BigInt(orderId),
           seller_organization_id: BigInt(sellerOrganizationId),
         },
-        include: { purchase_requests: true },
       });
-
-      if (!row) {
+      if (!po) {
         throw new AppException(
           ErrorCode.RESOURCE_NOT_FOUND,
           '주문을 찾을 수 없습니다.',
         );
       }
-
-      this.assertPurchaseRequestMutable(row.purchase_requests.status);
-
-      if (row.status !== purchase_orders_status.PENDING_SELLER_APPROVAL) {
+      if (po.status !== purchase_orders_status.PENDING_SELLER_APPROVAL) {
         throw new AppException(
           ErrorCode.CONFLICT,
           '거절할 수 있는 상태가 아닙니다.',
         );
       }
 
-      await tx.purchase_orders.updateMany({
-        where: {
-          purchase_request_id: row.purchase_request_id,
-          id: { not: row.id },
-          status: purchase_orders_status.PENDING_SELLER_APPROVAL,
-        },
-        data: { status: purchase_orders_status.CANCELED },
-      });
-
-      await tx.purchase_orders.update({
-        where: { id: row.id },
-        data: {
-          status: purchase_orders_status.REJECTED,
-          rejected_at: new Date(),
-        },
-      });
+      const rejectMsg =
+        dto.message?.trim() || dto.decisionMessage?.trim() || null;
 
       await tx.purchase_order_decisions.create({
         data: {
-          purchase_order_id: row.id,
-          decided_by_user_id: BigInt(currentUser.sub),
+          purchase_order_id: po.id,
+          decided_by_user_id: BigInt(userId),
           decision: purchase_order_decisions_decision.REJECTED,
-          decision_message: dto.message?.trim() || null,
+          decision_message: rejectMsg,
         },
       });
 
-      await this.rollupPurchaseRequestStatus(tx, row.purchase_request_id);
-
-      return this.findOne(sellerOrganizationId, orderId, tx);
-    });
-  }
-
-  async recordPurchase(
-    sellerOrganizationId: number,
-    orderId: number,
-    currentUser: JwtPayload,
-    dto: RecordPurchaseDto,
-  ) {
-    this.assertSellerAdmin(currentUser.role);
-
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const row = await tx.purchase_orders.findFirst({
-          where: {
-            id: BigInt(orderId),
-            seller_organization_id: BigInt(sellerOrganizationId),
-          },
-          include: { purchase_requests: true },
-        });
-
-        if (!row) {
-          throw new AppException(
-            ErrorCode.RESOURCE_NOT_FOUND,
-            '주문을 찾을 수 없습니다.',
-          );
-        }
-
-        this.assertPurchaseRequestMutable(row.purchase_requests.status);
-
-        if (row.status !== purchase_orders_status.APPROVED) {
-          throw new AppException(
-            ErrorCode.CONFLICT,
-            '실제 구매 처리는 승인된 주문만 가능합니다.',
-          );
-        }
-
-        await tx.purchase_orders.update({
-          where: { id: row.id },
-          data: {
-            status: purchase_orders_status.PURCHASED,
-            platform: dto.platform,
-            external_order_no: dto.externalOrderNo?.trim() || null,
-            order_url: dto.orderUrl?.trim() || null,
-            note: dto.note?.trim() ?? row.note,
-            ordered_at: new Date(),
-            purchased_by_user_id: BigInt(currentUser.sub),
-          },
-        });
-
-        await this.rollupPurchaseRequestStatus(tx, row.purchase_request_id);
-
-        return this.findOne(sellerOrganizationId, orderId, tx);
+      await tx.purchase_orders.update({
+        where: { id: po.id },
+        data: {
+          status: purchase_orders_status.REJECTED,
+          rejected_at: new Date(),
+          updated_at: new Date(),
+        },
       });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2002'
-      ) {
-        throw new AppException(
-          ErrorCode.ALREADY_EXISTS,
-          '동일 플랫폼·외부 주문번호가 이미 등록되어 있습니다.',
-        );
-      }
-      throw e;
-    }
-  }
 
-  async updateShipping(
-    sellerOrganizationId: number,
-    orderId: number,
-    currentUser: JwtPayload,
-    dto: UpdateShippingDto,
-  ) {
-    this.assertSellerAdmin(currentUser.role);
+      await releaseActiveBudgetReservationsForPurchaseOrders(tx, [po.id]);
 
-    const row = await this.prisma.purchase_orders.findFirst({
-      where: {
-        id: BigInt(orderId),
-        seller_organization_id: BigInt(sellerOrganizationId),
-      },
+      await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });
 
-    if (!row) {
-      throw new AppException(
-        ErrorCode.RESOURCE_NOT_FOUND,
-        '주문을 찾을 수 없습니다.',
-      );
-    }
-
-    if (
-      row.status !== purchase_orders_status.APPROVED &&
-      row.status !== purchase_orders_status.PURCHASED
-    ) {
-      throw new AppException(
-        ErrorCode.CONFLICT,
-        '배송 상태는 승인 또는 구매 완료된 주문만 갱신할 수 있습니다.',
-      );
-    }
-
-    await this.prisma.purchase_orders.update({
-      where: { id: row.id },
-      data: {
-        shipping_status: dto.shippingStatus.trim(),
-        delivered_at: dto.deliveredAt
-          ? new Date(dto.deliveredAt)
-          : row.delivered_at,
-      },
+    await this.auditLog.log({
+      organizationId: BigInt(sellerOrganizationId),
+      actorUserId: BigInt(userId),
+      action: 'SELLER_ORDER_REJECT',
+      targetType: 'purchase_order',
+      targetId: BigInt(orderId),
+      message: dto.message?.trim() || dto.decisionMessage?.trim() || null,
+      metadata: null,
     });
 
     return this.findOne(sellerOrganizationId, orderId);
   }
 
-  async cancel(
-    sellerOrganizationId: number,
-    orderId: number,
-    currentUser: JwtPayload,
-    dto: CancelSellerOrderDto,
-  ) {
-    this.assertSellerAdmin(currentUser.role);
-
-    return this.prisma.$transaction(async (tx) => {
-      const row = await tx.purchase_orders.findFirst({
+  async cancel(sellerOrganizationId: number, userId: number, orderId: number) {
+    await this.prisma.$transaction(async (tx) => {
+      const po = await tx.purchase_orders.findFirst({
         where: {
           id: BigInt(orderId),
           seller_organization_id: BigInt(sellerOrganizationId),
         },
-        include: { purchase_requests: true },
       });
-
-      if (!row) {
+      if (!po) {
         throw new AppException(
           ErrorCode.RESOURCE_NOT_FOUND,
           '주문을 찾을 수 없습니다.',
         );
       }
-
       if (
-        row.status !== purchase_orders_status.PENDING_SELLER_APPROVAL &&
-        row.status !== purchase_orders_status.APPROVED
+        po.status !== purchase_orders_status.PENDING_SELLER_APPROVAL &&
+        po.status !== purchase_orders_status.APPROVED
       ) {
         throw new AppException(
           ErrorCode.CONFLICT,
@@ -597,23 +392,228 @@ export class SellerOrderService {
         );
       }
 
-      this.assertPurchaseRequestMutable(row.purchase_requests.status);
-
-      const noteParts = [row.note, dto.message?.trim()]
-        .filter(Boolean)
-        .join('\n---\n');
-
       await tx.purchase_orders.update({
-        where: { id: row.id },
+        where: { id: po.id },
         data: {
           status: purchase_orders_status.CANCELED,
-          note: noteParts || row.note,
+          updated_at: new Date(),
         },
       });
 
-      await this.rollupPurchaseRequestStatus(tx, row.purchase_request_id);
+      await releaseActiveBudgetReservationsForPurchaseOrders(tx, [po.id]);
 
-      return this.findOne(sellerOrganizationId, orderId, tx);
+      await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
     });
+
+    await this.auditLog.log({
+      organizationId: BigInt(sellerOrganizationId),
+      actorUserId: BigInt(userId),
+      action: 'SELLER_ORDER_CANCEL',
+      targetType: 'purchase_order',
+      targetId: BigInt(orderId),
+      message: null,
+      metadata: null,
+    });
+
+    return this.findOne(sellerOrganizationId, orderId);
+  }
+
+  async recordPurchase(
+    sellerOrganizationId: number,
+    userId: number,
+    orderId: number,
+    dto: RecordPurchaseDto,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const po = await tx.purchase_orders.findFirst({
+        where: {
+          id: BigInt(orderId),
+          seller_organization_id: BigInt(sellerOrganizationId),
+        },
+      });
+      if (!po) {
+        throw new AppException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          '주문을 찾을 수 없습니다.',
+        );
+      }
+      if (po.status !== purchase_orders_status.APPROVED) {
+        throw new AppException(
+          ErrorCode.CONFLICT,
+          '구매 기록은 승인된 주문에만 가능합니다.',
+        );
+      }
+
+      const lines = await tx.purchase_request_items.findMany({
+        where: {
+          purchase_request_id: po.purchase_request_id,
+          seller_organization_id: BigInt(sellerOrganizationId),
+        },
+      });
+
+      if (lines.length === 0) {
+        throw new AppException(
+          ErrorCode.BAD_REQUEST,
+          '요청 라인이 없어 구매를 기록할 수 없습니다.',
+        );
+      }
+
+      const externalNo = dto.externalOrderNo?.trim();
+      if (externalNo) {
+        const clash = await tx.purchase_orders.findFirst({
+          where: {
+            platform: dto.platform,
+            external_order_no: externalNo,
+            NOT: { id: po.id },
+          },
+          select: { id: true },
+        });
+        if (clash) {
+          throw new AppException(
+            ErrorCode.CONFLICT,
+            '동일 플랫폼에서 이미 사용 중인 외부 주문번호입니다.',
+          );
+        }
+      }
+
+      const existingCount = await tx.purchase_order_items.count({
+        where: { purchase_order_id: po.id },
+      });
+      if (existingCount === 0) {
+        await tx.purchase_order_items.createMany({
+          data: lines.map((li) => ({
+            purchase_order_id: po.id,
+            purchase_request_item_id: li.id,
+            product_id: li.product_id,
+            product_name_snapshot: li.product_name_snapshot,
+            product_url_snapshot: li.product_url_snapshot,
+            unit_price_snapshot: li.unit_price_snapshot,
+            quantity: li.quantity,
+            line_total: li.line_total,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      const shippingFee =
+        dto.shippingFee != null && dto.shippingFee !== ''
+          ? new Prisma.Decimal(dto.shippingFee)
+          : undefined;
+
+      await tx.purchase_orders.update({
+        where: { id: po.id },
+        data: {
+          status: purchase_orders_status.PURCHASED,
+          platform: dto.platform,
+          external_order_no: externalNo ? externalNo : null,
+          order_url: dto.orderUrl ?? null,
+          ...(shippingFee !== undefined && { shipping_fee: shippingFee }),
+          ordered_at: new Date(),
+          purchased_by_user_id: BigInt(userId),
+          note: dto.note ?? undefined,
+          updated_at: new Date(),
+        },
+      });
+
+      const qtyByProduct = new Map<bigint, number>();
+      for (const li of lines) {
+        if (li.product_id == null) {
+          continue;
+        }
+        const prev = qtyByProduct.get(li.product_id) ?? 0;
+        qtyByProduct.set(li.product_id, prev + li.quantity);
+      }
+      for (const [productId, qty] of qtyByProduct) {
+        await tx.product.update({
+          where: { id: productId },
+          data: { purchaseCountCache: { increment: qty } },
+        });
+      }
+
+      await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
+    });
+
+    await this.auditLog.log({
+      organizationId: BigInt(sellerOrganizationId),
+      actorUserId: BigInt(userId),
+      action: 'SELLER_ORDER_RECORD_PURCHASE',
+      targetType: 'purchase_order',
+      targetId: BigInt(orderId),
+      message: null,
+      metadata: { platform: dto.platform },
+    });
+
+    return this.findOne(sellerOrganizationId, orderId);
+  }
+
+  async updateShipping(
+    sellerOrganizationId: number,
+    userId: number,
+    orderId: number,
+    dto: UpdateShippingDto,
+  ) {
+    const shippingStatusTrimmed = dto.shippingStatus?.trim();
+    const hasShipping =
+      shippingStatusTrimmed != null && shippingStatusTrimmed !== '';
+    const deliveredAtRaw = dto.deliveredAt;
+    const hasDelivered =
+      deliveredAtRaw != null && String(deliveredAtRaw).trim() !== '';
+
+    if (!hasShipping && !hasDelivered) {
+      throw new AppException(
+        ErrorCode.BAD_REQUEST,
+        'shippingStatus 또는 deliveredAt 중 하나는 필요합니다.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const po = await tx.purchase_orders.findFirst({
+        where: {
+          id: BigInt(orderId),
+          seller_organization_id: BigInt(sellerOrganizationId),
+        },
+      });
+      if (!po) {
+        throw new AppException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          '주문을 찾을 수 없습니다.',
+        );
+      }
+      if (po.status !== purchase_orders_status.PURCHASED) {
+        throw new AppException(
+          ErrorCode.CONFLICT,
+          '배송 정보는 구매 완료된 주문만 수정할 수 있습니다.',
+        );
+      }
+
+      await tx.purchase_orders.update({
+        where: { id: po.id },
+        data: {
+          ...(hasShipping && {
+            shipping_status: shippingStatusTrimmed,
+          }),
+          ...(hasDelivered &&
+            deliveredAtRaw != null && {
+              delivered_at: new Date(deliveredAtRaw),
+            }),
+          updated_at: new Date(),
+        },
+      });
+    });
+
+    await this.auditLog.log({
+      organizationId: BigInt(sellerOrganizationId),
+      actorUserId: BigInt(userId),
+      action: 'SELLER_ORDER_SHIPPING_UPDATE',
+      targetType: 'purchase_order',
+      targetId: BigInt(orderId),
+      message: null,
+      metadata: {
+        shippingStatus: shippingStatusTrimmed ?? null,
+        deliveredAt: dto.deliveredAt ?? null,
+      },
+    });
+
+    return this.findOne(sellerOrganizationId, orderId);
   }
 }
