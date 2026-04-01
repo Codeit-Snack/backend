@@ -7,12 +7,12 @@ RUN apt-get update \
 
 FROM base AS build
 COPY package.json package-lock.json ./
-RUN npm ci
+# postinstall runs `prisma generate` — schema must exist before npm ci
 COPY prisma ./prisma
 COPY prisma.config.ts ./
+RUN npm ci
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY src ./src
-RUN npx prisma generate
 RUN npm run build
 RUN npm prune --omit=dev
 RUN npm install prisma@7.4.2 --no-save
