@@ -17,14 +17,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { ProductService } from '../services/product.service';
-import { CreateProductDto } from '../dto/create-product.dto';
-import { UpdateProductDto } from '../dto/update-product.dto';
-import { ProductListQueryDto } from '../dto/product-list-query.dto';
-import { ProductResponseDto } from '../dto/product-response.dto';
-import { OrganizationId } from '../decorators/catalog-context.decorator';
-import { UserId } from '../decorators/catalog-context.decorator';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { ProductService } from '@/modules/catalog/services/product.service';
+import { CreateProductDto } from '@/modules/catalog/dto/create-product.dto';
+import { UpdateProductDto } from '@/modules/catalog/dto/update-product.dto';
+import { ProductListQueryDto } from '@/modules/catalog/dto/product-list-query.dto';
+import { ProductResponseDto } from '@/modules/catalog/dto/product-response.dto';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { UserId } from '@/modules/catalog/decorators/catalog-context.decorator';
 
 @ApiTags('Products')
 @ApiBearerAuth('access-token')

@@ -1,5 +1,8 @@
 import { HttpException } from '@nestjs/common';
-import { ErrorCode, ERROR_CODE_TO_HTTP_STATUS } from '../enums/error-code.enum';
+import {
+  ErrorCode,
+  ERROR_CODE_TO_HTTP_STATUS,
+} from '@/common/enums/error-code.enum';
 
 export interface AppExceptionResponse {
   errorCode: ErrorCode;

@@ -1,4 +1,4 @@
-import { ErrorCode } from '../enums/error-code.enum';
+import { ErrorCode } from '@/common/enums/error-code.enum';
 
 /** API 에러 응답 형식 */
 export interface ErrorResponse {

@@ -8,13 +8,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { OrganizationsService } from './organizations.service';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
-import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { UpdateOrganizationMemberRoleDto } from './dto/update-organization-member-role.dto';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
+import { OrganizationsService } from '@/organizations/organizations.service';
+import { CreateOrganizationDto } from '@/organizations/dto/create-organization.dto';
+import { UpdateOrganizationDto } from '@/organizations/dto/update-organization.dto';
+import { UpdateOrganizationMemberRoleDto } from '@/organizations/dto/update-organization-member-role.dto';
 
 @ApiTags('Organizations')
 @ApiBearerAuth('access-token')

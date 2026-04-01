@@ -5,14 +5,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
-import { BudgetPeriodService } from '../services/budget-period.service';
-import { UpsertBudgetPeriodDto } from '../dto/upsert-budget-period.dto';
-import { BudgetPeriodQueryDto } from '../dto/budget-period-query.dto';
-import { BudgetYearQueryDto } from '../dto/budget-year-query.dto';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { BudgetPeriodService } from '@/modules/finance/services/budget-period.service';
+import { UpsertBudgetPeriodDto } from '@/modules/finance/dto/upsert-budget-period.dto';
+import { BudgetPeriodQueryDto } from '@/modules/finance/dto/budget-period-query.dto';
+import { BudgetYearQueryDto } from '@/modules/finance/dto/budget-year-query.dto';
 
 @ApiTags('Budget')
 @ApiBearerAuth('access-token')

@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
-import { ExpenseService } from '../services/expense.service';
-import { CreateExpenseDto } from '../dto/create-expense.dto';
-import { ExpenseListQueryDto } from '../dto/expense-list-query.dto';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { ExpenseService } from '@/modules/finance/services/expense.service';
+import { CreateExpenseDto } from '@/modules/finance/dto/create-expense.dto';
+import { ExpenseListQueryDto } from '@/modules/finance/dto/expense-list-query.dto';
 
 @ApiTags('Expenses')
 @ApiBearerAuth('access-token')

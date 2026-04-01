@@ -5,15 +5,15 @@ import {
   purchase_order_decisions_decision,
   purchase_orders_status,
 } from '@prisma/client';
-import { PrismaService } from '../../database/prisma.service';
-import { AuditLogService } from '../audit/audit-log.service';
-import { AppException } from '../../common/exceptions/app.exception';
-import { ErrorCode } from '../../common/enums/error-code.enum';
-import { SellerOrderListQueryDto } from './dto/seller-order-list-query.dto';
-import { ApproveSellerOrderDto } from './dto/approve-seller-order.dto';
-import { RejectSellerOrderDto } from './dto/reject-seller-order.dto';
-import { RecordPurchaseDto } from './dto/record-purchase.dto';
-import { UpdateShippingDto } from './dto/update-shipping.dto';
+import { PrismaService } from '@/database/prisma.service';
+import { AuditLogService } from '@/modules/audit/audit-log.service';
+import { AppException } from '@/common/exceptions/app.exception';
+import { ErrorCode } from '@/common/enums/error-code.enum';
+import { SellerOrderListQueryDto } from '@/modules/seller-order/dto/seller-order-list-query.dto';
+import { ApproveSellerOrderDto } from '@/modules/seller-order/dto/approve-seller-order.dto';
+import { RejectSellerOrderDto } from '@/modules/seller-order/dto/reject-seller-order.dto';
+import { RecordPurchaseDto } from '@/modules/seller-order/dto/record-purchase.dto';
+import { UpdateShippingDto } from '@/modules/seller-order/dto/update-shipping.dto';
 
 @Injectable()
 export class SellerOrderService {

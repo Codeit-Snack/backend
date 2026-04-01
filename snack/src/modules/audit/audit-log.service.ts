@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { audit_logs_actor_type, Prisma } from '@prisma/client';
-import { PrismaService } from '../../database/prisma.service';
+import { PrismaService } from '@/database/prisma.service';
 
 export type AuditLogInput = {
   organizationId?: bigint | null;

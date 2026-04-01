@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../../../database/prisma.service';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-import { AuditLogService } from '../../audit/audit-log.service';
-import { assertOrgAdmin } from '../utils/assert-org-admin.util';
-import { UpsertBudgetPeriodDto } from '../dto/upsert-budget-period.dto';
+import { PrismaService } from '@/database/prisma.service';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { AuditLogService } from '@/modules/audit/audit-log.service';
+import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
+import { UpsertBudgetPeriodDto } from '@/modules/finance/dto/upsert-budget-period.dto';
 
 @Injectable()
 export class BudgetPeriodService {

@@ -15,13 +15,13 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { PurchaseRequestService } from '../services/purchase-request.service';
-import { CreatePurchaseRequestDto } from '../dto/create-purchase-request.dto';
-import { PurchaseRequestListQueryDto } from '../dto/purchase-request-list-query.dto';
-import { PurchaseRequestDetailResponseDto } from '../dto/purchase-request-response.dto';
-import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
-import { UserId } from '../../catalog/decorators/catalog-context.decorator';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { PurchaseRequestService } from '@/modules/purchase-request/services/purchase-request.service';
+import { CreatePurchaseRequestDto } from '@/modules/purchase-request/dto/create-purchase-request.dto';
+import { PurchaseRequestListQueryDto } from '@/modules/purchase-request/dto/purchase-request-list-query.dto';
+import { PurchaseRequestDetailResponseDto } from '@/modules/purchase-request/dto/purchase-request-response.dto';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { UserId } from '@/modules/catalog/decorators/catalog-context.decorator';
 
 @ApiTags('PurchaseRequest')
 @ApiBearerAuth('access-token')

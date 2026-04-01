@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
-import { AuditModule } from '../audit/audit.module';
-import { BudgetPeriodController } from './controllers/budget-period.controller';
-import { BudgetReservationController } from './controllers/budget-reservation.controller';
-import { ExpenseController } from './controllers/expense.controller';
-import { AuditLogController } from './controllers/audit-log.controller';
-import { BudgetPeriodService } from './services/budget-period.service';
-import { BudgetReservationService } from './services/budget-reservation.service';
-import { ExpenseService } from './services/expense.service';
-import { FinanceAuditQueryService } from './services/finance-audit-query.service';
+import { AuditModule } from '@/modules/audit/audit.module';
+import { BudgetPeriodController } from '@/modules/finance/controllers/budget-period.controller';
+import { BudgetReservationController } from '@/modules/finance/controllers/budget-reservation.controller';
+import { ExpenseController } from '@/modules/finance/controllers/expense.controller';
+import { AuditLogController } from '@/modules/finance/controllers/audit-log.controller';
+import { BudgetPeriodService } from '@/modules/finance/services/budget-period.service';
+import { BudgetReservationService } from '@/modules/finance/services/budget-reservation.service';
+import { ExpenseService } from '@/modules/finance/services/expense.service';
+import { FinanceAuditQueryService } from '@/modules/finance/services/finance-audit-query.service';
 
 @Module({
   imports: [AuditModule],
