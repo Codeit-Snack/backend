@@ -260,14 +260,21 @@ export class SellerOrderService {
         );
       }
 
+      const decisionMsg = dto.decisionMessage?.trim() || null;
+
       await tx.purchase_order_decisions.create({
         data: {
           purchase_order_id: po.id,
           decided_by_user_id: BigInt(userId),
           decision: purchase_order_decisions_decision.APPROVED,
-          decision_message: dto.decisionMessage ?? null,
+          decision_message: decisionMsg,
         },
       });
+
+      const shippingFee =
+        dto.shippingFee != null && dto.shippingFee !== ''
+          ? new Prisma.Decimal(dto.shippingFee)
+          : undefined;
 
       await tx.purchase_orders.update({
         where: { id: po.id },
@@ -275,6 +282,7 @@ export class SellerOrderService {
           status: purchase_orders_status.APPROVED,
           approved_at: new Date(),
           updated_at: new Date(),
+          ...(shippingFee !== undefined && { shipping_fee: shippingFee }),
         },
       });
 
@@ -320,12 +328,15 @@ export class SellerOrderService {
         );
       }
 
+      const rejectMsg =
+        dto.message?.trim() || dto.decisionMessage?.trim() || null;
+
       await tx.purchase_order_decisions.create({
         data: {
           purchase_order_id: po.id,
           decided_by_user_id: BigInt(userId),
           decision: purchase_order_decisions_decision.REJECTED,
-          decision_message: dto.decisionMessage ?? null,
+          decision_message: rejectMsg,
         },
       });
 
@@ -347,7 +358,7 @@ export class SellerOrderService {
       action: 'SELLER_ORDER_REJECT',
       targetType: 'purchase_order',
       targetId: BigInt(orderId),
-      message: dto.decisionMessage ?? null,
+      message: dto.message?.trim() || dto.decisionMessage?.trim() || null,
       metadata: null,
     });
 
@@ -503,7 +514,14 @@ export class SellerOrderService {
     orderId: number,
     dto: UpdateShippingDto,
   ) {
-    if (dto.shippingStatus == null && dto.deliveredAt == null) {
+    const shippingStatusTrimmed = dto.shippingStatus?.trim();
+    const hasShipping =
+      shippingStatusTrimmed != null && shippingStatusTrimmed !== '';
+    const deliveredAtRaw = dto.deliveredAt;
+    const hasDelivered =
+      deliveredAtRaw != null && String(deliveredAtRaw).trim() !== '';
+
+    if (!hasShipping && !hasDelivered) {
       throw new AppException(
         ErrorCode.BAD_REQUEST,
         'shippingStatus 또는 deliveredAt 중 하나는 필요합니다.',
@@ -533,12 +551,13 @@ export class SellerOrderService {
       await tx.purchase_orders.update({
         where: { id: po.id },
         data: {
-          ...(dto.shippingStatus != null && {
-            shipping_status: dto.shippingStatus,
+          ...(hasShipping && {
+            shipping_status: shippingStatusTrimmed,
           }),
-          ...(dto.deliveredAt != null && {
-            delivered_at: new Date(dto.deliveredAt),
-          }),
+          ...(hasDelivered &&
+            deliveredAtRaw != null && {
+              delivered_at: new Date(deliveredAtRaw),
+            }),
           updated_at: new Date(),
         },
       });
@@ -552,7 +571,7 @@ export class SellerOrderService {
       targetId: BigInt(orderId),
       message: null,
       metadata: {
-        shippingStatus: dto.shippingStatus ?? null,
+        shippingStatus: shippingStatusTrimmed ?? null,
         deliveredAt: dto.deliveredAt ?? null,
       },
     });

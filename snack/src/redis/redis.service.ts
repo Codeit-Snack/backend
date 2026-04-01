@@ -13,15 +13,28 @@ export class RedisService implements OnModuleDestroy {
       return;
     }
 
-    const host = this.configService.get<string>('REDIS_HOST', 'localhost');
-    const port = Number(this.configService.get<string>('REDIS_PORT') ?? 6379);
+    const host =
+      this.configService.get<string>('REDIS_HOST', 'localhost')?.trim() ||
+      'localhost';
+    const portRaw = this.configService.get<string>('REDIS_PORT')?.trim();
+    if (portRaw === undefined || portRaw === '') {
+      throw new Error(
+        'REDIS_PORT is not set. Add it to your .env (see .env.example).',
+      );
+    }
+    const port = Number(portRaw);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error(
+        'REDIS_PORT must be an integer between 1 and 65535 (see .env.example).',
+      );
+    }
     const password = this.configService.get<string>('REDIS_PASSWORD', '');
     const useTls =
       this.configService.get<string>('REDIS_TLS', 'false') === 'true';
 
     this.client = new Redis({
       host,
-      port: Number.isFinite(port) ? port : 6379,
+      port,
       password: password || undefined,
       ...(useTls && { tls: { rejectUnauthorized: true } }),
     });
