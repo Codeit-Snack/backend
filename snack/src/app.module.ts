@@ -14,6 +14,7 @@ import { UsersModule } from './users/users.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { CartModule } from './modules/cart/cart.module';
 import { PurchaseRequestModule } from './modules/purchase-request/purchase-request.module';
+import { FinanceModule } from './modules/finance/finance.module';
 import { SellerOrderModule } from './modules/seller-order/seller-order.module';
 
 @Module({
@@ -32,6 +33,7 @@ import { SellerOrderModule } from './modules/seller-order/seller-order.module';
     CatalogModule,
     CartModule,
     PurchaseRequestModule,
+    FinanceModule,
     SellerOrderModule,
   ],
   controllers: [AppController],

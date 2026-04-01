@@ -1,14 +1,15 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsDateString, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateShippingDto {
-  @ApiProperty({ example: 'SHIPPED', description: '배송 상태 라벨' })
+  @ApiPropertyOptional({ example: 'DELIVERED' })
+  @IsOptional()
   @IsString()
   @MaxLength(40)
-  shippingStatus: string;
+  shippingStatus?: string;
 
-  @ApiPropertyOptional({ description: '배송 완료 시각 (ISO 8601)' })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsISO8601()
+  @IsDateString()
   deliveredAt?: string;
 }

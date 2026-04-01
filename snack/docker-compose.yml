@@ -1,3 +1,4 @@
+# up: MySQL + migrate deploy 1회. DB만: docker compose up -d mysql
 services:
   mysql:
     image: mysql:8.0
@@ -16,6 +17,33 @@ services:
       - --collation-server=utf8mb4_0900_ai_ci
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'mysqladmin',
+          'ping',
+          '-h',
+          '127.0.0.1',
+          '-uroot',
+          '-padmin',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    container_name: snack-migrate
+    environment:
+      DATABASE_URL: mysql://admin:admin@mysql:3306/snack
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: 'no'
 
 volumes:
   mysql_data:

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { AuditModule } from '../modules/audit/audit.module';
 import { PrismaModule } from '../database/prisma.module';
 import { InvitationModule } from '../invitation/invitation.module';
 import { AuthController } from './auth.controller';
@@ -12,6 +13,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   imports: [
     ConfigModule,
     PrismaModule,
+    AuditModule,
     InvitationModule,
     PassportModule,
     JwtModule.registerAsync({

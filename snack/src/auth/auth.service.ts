@@ -7,10 +7,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
+import { createHash, randomBytes } from 'crypto';
 import { OrgRole, OrgType, Prisma, auth_sessions_status } from '@prisma/client';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { hashPassword, verifyPassword } from '../common/utils/password.util';
 import { PrismaService } from '../database/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../modules/audit/audit-log.service';
 import { InvitationService } from '../invitation/invitation.service';
 import { CurrentUserPayload } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
@@ -24,19 +29,10 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly invitationService: InvitationService,
+    private readonly mailService: MailService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
-  // =========================================================
-  // 회원가입
-  // ---------------------------------------------------------
-  // 역할:
-  // - 사용자 입력값 정리(trim, 소문자 변환)
-  // - 조직 유형에 따른 businessNumber 유효성 검사
-  // - 비밀번호 해시 생성
-  // - Organization / OrganizationMember / User / UserProfile을
-  //   Prisma nested create로 한 번에 생성
-  // - 회원가입 완료 후 핵심 정보 반환
-  // =========================================================
   async signUp(dto: SignUpDto) {
     const email = dto.email.trim().toLowerCase();
     const displayName = dto.displayName.trim();
@@ -123,8 +119,6 @@ export class AuthService {
     } catch (error) {
       console.error('signup error:', error);
 
-      // Prisma P2002:
-      // 유니크 제약조건 위반. 여기서는 email 중복 가능성이 가장 큼
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -138,17 +132,6 @@ export class AuthService {
     }
   }
 
-  // =========================================================
-  // 로그인
-  // ---------------------------------------------------------
-  // 역할:
-  // - 이메일/비밀번호 검증
-  // - 활성 사용자 / 활성 조직 멤버십 확인
-  // - refresh 세션(auth_sessions) 생성
-  // - access token / refresh token 발급
-  // - refresh token hash 저장
-  // - 마지막 로그인 시각 갱신
-  // =========================================================
   async login(dto: LoginDto) {
     const email = dto.email.trim().toLowerCase();
 
@@ -168,7 +151,6 @@ export class AuthService {
       },
     });
 
-    // 존재하지 않거나 비활성 사용자면 로그인 실패 처리
     if (!user || !user.isActive) {
       throw new UnauthorizedException(
         '이메일 또는 비밀번호가 올바르지 않습니다.',
@@ -186,20 +168,17 @@ export class AuthService {
       );
     }
 
-    // 현재는 가장 첫 번째 활성 멤버십을 기본 조직으로 사용
     const primaryMembership = user.memberships[0];
 
     if (!primaryMembership) {
       throw new UnauthorizedException('활성 조직 멤버십이 없습니다.');
     }
 
-    // refresh token 만료시간을 미리 계산해서 세션에 저장
     const refreshExpiresIn = this.configService.getOrThrow<string>(
       'JWT_REFRESH_EXPIRES_IN',
     );
     const refreshExpiresAt = this.getExpiryDate(refreshExpiresIn);
 
-    // 세션을 먼저 만들고 sessionId를 토큰 payload에 포함시킴
     const session = await this.prisma.auth_sessions.create({
       data: {
         user_id: user.id,
@@ -210,8 +189,6 @@ export class AuthService {
       },
     });
 
-    // access token:
-    // 사용자 정보 + 현재 조직 + role + sessionId 포함
     const accessPayload = {
       sub: user.id.toString(),
       email: user.email,
@@ -220,8 +197,6 @@ export class AuthService {
       sessionId: session.id.toString(),
     };
 
-    // refresh token:
-    // 최소 정보(sub, type, sessionId)만 포함
     const refreshPayload = {
       sub: user.id.toString(),
       type: 'refresh' as const,
@@ -231,10 +206,6 @@ export class AuthService {
     const accessToken = await this.signAccessToken(accessPayload);
     const refreshToken = await this.signRefreshToken(refreshPayload);
 
-    // DB에는 refresh token 원문이 아니라 hash만 저장
-    // =========================================================
-    // 수정 요청 (2026.03.12 : bcrypt.compare() 직접 사용 => hashPassword() 유틸로 변경)
-    // =========================================================
     const refreshTokenHash = await hashPassword(refreshToken, 10);
 
     await this.prisma.auth_sessions.update({
@@ -264,7 +235,7 @@ export class AuthService {
         await this.invitationService.accept(dto.invitationToken, currentUser);
         invitationAccepted = true;
       } catch {
-        // 초대 수락 실패 시 무시 (토큰 만료 등)
+        /* 초대 수락 실패 무시 */
       }
     }
 
@@ -294,17 +265,6 @@ export class AuthService {
     };
   }
 
-  // =========================================================
-  // 토큰 재발급 (Refresh)
-  // ---------------------------------------------------------
-  // 역할:
-  // - refresh token 서명 검증
-  // - 세션 존재 여부 / 만료 여부 / 상태 확인
-  // - DB에 저장된 refresh token hash와 비교
-  // - 일치하면 access/refresh token 재발급
-  // - 새 refresh token hash로 rotation 수행
-  // - mismatch면 세션 revoke 처리
-  // =========================================================
   async refresh(dto: RefreshTokenDto) {
     const payload = await this.verifyRefreshToken(dto.refreshToken);
 
@@ -351,8 +311,6 @@ export class AuthService {
       session.refresh_token_hash,
     );
 
-    // refresh token hash가 다르면 재사용 공격 가능성으로 보고
-    // 세션을 즉시 revoke 처리
     if (!isRefreshTokenValid) {
       await this.prisma.auth_sessions.update({
         where: { id: session.id },
@@ -365,7 +323,6 @@ export class AuthService {
       throw new UnauthorizedException('유효하지 않은 refresh token입니다.');
     }
 
-    // 세션에 기록된 현재 조직 기준으로 멤버십 찾기
     const membership = session.users.memberships.find(
       (item) =>
         item.organizationId.toString() ===
@@ -393,11 +350,6 @@ export class AuthService {
     const newAccessToken = await this.signAccessToken(newAccessPayload);
     const newRefreshToken = await this.signRefreshToken(newRefreshPayload);
 
-    // refresh token rotation:
-    // 새 refresh token hash로 기존 값을 교체
-    // =========================================================
-    // 수정 요청 (2026.03.12 : bcrypt.hash() 직접 사용 => hashPassword() 유틸로 변경)
-    // =========================================================
     const newRefreshTokenHash = await hashPassword(newRefreshToken, 10);
 
     const refreshExpiresIn = this.configService.getOrThrow<string>(
@@ -423,14 +375,6 @@ export class AuthService {
     };
   }
 
-  // =========================================================
-  // 로그아웃
-  // ---------------------------------------------------------
-  // 역할:
-  // - access token에 포함된 sessionId 기준으로 현재 세션 revoke
-  // - 세션 상태를 ACTIVE -> REVOKED로 변경
-  // - 이후 refresh token 재사용 방지
-  // =========================================================
   async logout(currentUser: CurrentUserPayload) {
     if (!currentUser.sessionId) {
       throw new UnauthorizedException('세션 정보가 없습니다.');
@@ -453,14 +397,6 @@ export class AuthService {
     };
   }
 
-  // =========================================================
-  // 내 정보 조회
-  // ---------------------------------------------------------
-  // 역할:
-  // - access token의 sub / organizationId 기준으로 사용자 조회
-  // - 현재 조직에서의 멤버십과 함께 내 정보 반환
-  // - /api/auth/me 보호 API에서 사용
-  // =========================================================
   async getMe(currentUser: CurrentUserPayload) {
     const user = await this.prisma.user.findUnique({
       where: { id: BigInt(currentUser.sub) },
@@ -510,13 +446,6 @@ export class AuthService {
     };
   }
 
-  // =========================================================
-  // Access Token 발급 유틸
-  // ---------------------------------------------------------
-  // 역할:
-  // - access token 서명 전용 공통 함수
-  // - 로그인 / refresh 재발급 시 재사용
-  // =========================================================
   private async signAccessToken(payload: {
     sub: string;
     email: string;
@@ -536,13 +465,6 @@ export class AuthService {
     } as JwtSignOptions);
   }
 
-  // =========================================================
-  // Refresh Token 발급 유틸
-  // ---------------------------------------------------------
-  // 역할:
-  // - refresh token 서명 전용 공통 함수
-  // - refresh token은 최소한의 식별 정보만 담아서 발급
-  // =========================================================
   private async signRefreshToken(payload: {
     sub: string;
     type: 'refresh';
@@ -560,13 +482,6 @@ export class AuthService {
     } as JwtSignOptions);
   }
 
-  // =========================================================
-  // Refresh Token 검증 유틸
-  // ---------------------------------------------------------
-  // 역할:
-  // - JWT_REFRESH_SECRET으로 refresh token 서명 검증
-  // - 검증 실패 시 UnauthorizedException 반환
-  // =========================================================
   private async verifyRefreshToken(token: string): Promise<{
     sub: string;
     type: 'refresh';
@@ -585,13 +500,6 @@ export class AuthService {
     }
   }
 
-  // =========================================================
-  // 만료시간 계산 유틸
-  // ---------------------------------------------------------
-  // 역할:
-  // - .env의 expiresIn 문자열(예: 7d, 24h, 30m)을 Date로 변환
-  // - auth_sessions.expires_at 저장 시 사용
-  // =========================================================
   private getExpiryDate(expiresIn: string): Date {
     const now = new Date();
 
@@ -619,7 +527,6 @@ export class AuthService {
       return now;
     }
 
-    // 예외적인 형식이면 기본 7일로 처리
     now.setDate(now.getDate() + 7);
     return now;
   }
@@ -679,5 +586,144 @@ export class AuthService {
     return {
       message: '비밀번호가 변경되었습니다.',
     };
+  }
+
+  async requestPasswordReset(
+    dto: ForgotPasswordDto,
+    meta?: { ip?: string; userAgent?: string },
+  ) {
+    const generic = {
+      message:
+        '요청하신 이메일이 등록되어 있으면 비밀번호 재설정 안내를 보냈습니다.',
+    };
+
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      return generic;
+    }
+
+    const expiresIn = this.configService.get<string>(
+      'PASSWORD_RESET_EXPIRES_IN',
+      '1h',
+    );
+    const expiresAt = this.getExpiryDate(expiresIn);
+
+    await this.prisma.password_reset_tokens.updateMany({
+      where: { user_id: user.id, used_at: null },
+      data: { used_at: new Date() },
+    });
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+
+    await this.prisma.password_reset_tokens.create({
+      data: {
+        user_id: user.id,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+        requested_ip: meta?.ip?.slice(0, 45) ?? null,
+        requested_user_agent: meta?.userAgent ?? null,
+      },
+    });
+
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:5173',
+    );
+    const path =
+      this.configService.get<string>(
+        'PASSWORD_RESET_PATH',
+        '/reset-password',
+      ) ?? '/reset-password';
+    const resetLink = `${frontendUrl.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}?token=${rawToken}`;
+
+    try {
+      await this.mailService.sendPasswordResetEmail({
+        to: email,
+        resetLink,
+      });
+    } catch (err) {
+      console.error('password reset mail failed:', err);
+      throw new InternalServerErrorException(
+        '비밀번호 재설정 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      );
+    }
+
+    await this.auditLog.log({
+      organizationId: null,
+      actorUserId: user.id,
+      action: 'PASSWORD_RESET_REQUEST',
+      targetType: 'user',
+      targetId: user.id,
+      message: null,
+      metadata: null,
+    });
+
+    return generic;
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tokenHash = createHash('sha256').update(dto.token).digest('hex');
+
+    const row = await this.prisma.password_reset_tokens.findUnique({
+      where: { token_hash: tokenHash },
+      include: {
+        users: { select: { id: true, isActive: true } },
+      },
+    });
+
+    if (
+      !row ||
+      row.used_at != null ||
+      row.expires_at <= new Date() ||
+      !row.users.isActive
+    ) {
+      throw new BadRequestException(
+        '유효하지 않거나 만료된 재설정 링크입니다.',
+      );
+    }
+
+    const bcryptRounds = Number(
+      this.configService.get<string>('BCRYPT_ROUNDS', '12'),
+    );
+    const passwordHash = await hashPassword(dto.password, bcryptRounds);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: row.user_id },
+        data: { passwordHash },
+      });
+      await tx.password_reset_tokens.update({
+        where: { id: row.id },
+        data: { used_at: new Date() },
+      });
+      await tx.auth_sessions.updateMany({
+        where: {
+          user_id: row.user_id,
+          status: auth_sessions_status.ACTIVE,
+        },
+        data: {
+          status: auth_sessions_status.REVOKED,
+          revoked_at: new Date(),
+        },
+      });
+    });
+
+    await this.auditLog.log({
+      organizationId: null,
+      actorUserId: row.user_id,
+      action: 'PASSWORD_RESET_COMPLETE',
+      targetType: 'user',
+      targetId: row.user_id,
+      message: null,
+      metadata: null,
+    });
+
+    return { message: '비밀번호가 재설정되었습니다. 다시 로그인해 주세요.' };
   }
 }
