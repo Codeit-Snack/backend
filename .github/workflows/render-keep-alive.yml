@@ -1,0 +1,24 @@
+# Render 무료 인스턴스가 유휴 시 sleep 되는 것을 줄이기 위해 /api/health 를 주기적으로 호출합니다.
+# URL이 바뀌면 아래 env.HEALTH_URL 을 수정하거나, GitHub → Settings → Variables → Actions 에
+# KEEP_ALIVE_HEALTH_URL 을 추가한 뒤 ${{ vars.KEEP_ALIVE_HEALTH_URL }} 로 바꿔 쓰면 됩니다.
+
+name: Render keep-alive (health ping)
+
+on:
+  schedule:
+    # UTC 기준 약 10분마다 (Render 유휴 타임아웃에 맞춰 조정 가능)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET /api/health
+        env:
+          HEALTH_URL: ${{ vars.KEEP_ALIVE_HEALTH_URL }}
+        run: |
+          URL="${HEALTH_URL:-https://snack-xlvk.onrender.com/api/health}"
+          echo "Pinging $URL"
+          # cold start 시 수십 초 걸릴 수 있음
+          curl -fsS --max-time 120 --retry 2 --retry-delay 20 -o /dev/null -w "%{http_code}\n" "$URL"
