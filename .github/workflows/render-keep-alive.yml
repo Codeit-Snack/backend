@@ -6,8 +6,8 @@ name: Render keep-alive (health ping)
 
 on:
   schedule:
-    # UTC 기준 약 10분마다 (Render 유휴 타임아웃에 맞춰 조정 가능)
-    - cron: '*/10 * * * *'
+    # UTC 기준 6시간마다 (0, 6, 12, 18시 정각). 무료 인스턴스는 그 사이에 sleep 될 수 있음.
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
