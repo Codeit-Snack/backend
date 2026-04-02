@@ -1,0 +1,18 @@
+# Render Blueprint — 대시보드에서 New > Blueprint > 이 저장소 연결 시 사용
+# 이미 수동으로 만든 Web Service가 있으면: Settings > Build & Deploy > 연결 브랜치·Root Directory 동일하게 맞추면 됨
+# https://render.com/docs/blueprint-spec
+#
+# PR마다 프로덕션을 바꾸지 않으려면: 배포 브랜치는 main(또는 dev)만 두는 것이 일반적입니다.
+# PR 머지 → 대상 브랜치에 push → autoDeploy로 최신 커밋 배포
+
+services:
+  - type: web
+    name: snack-backend
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: snack
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    healthCheckPath: /api/health

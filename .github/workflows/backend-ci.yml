@@ -34,3 +34,21 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # PR에는 실행 안 함. main/master/dev 로 머지(push)된 뒤, 위 빌드가 성공하면 Render 배포 트리거.
+  # Render 대시보드에서 Auto-Deploy를 켜 두었다면 이 잡은 생략해도 됨(훅 미설정 시 자동 스킵).
+  deploy-render:
+    name: Trigger Render deploy
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST deploy hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL not set — skip. Enable Render GitHub Auto-Deploy or add this secret."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK"
