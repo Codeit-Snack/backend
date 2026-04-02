@@ -27,7 +27,7 @@ import { RejectSellerOrderDto } from '../dto/reject-seller-order.dto';
 import { RecordPurchaseDto } from '../dto/record-purchase.dto';
 import { UpdateShippingDto } from '../dto/update-shipping.dto';
 
-@ApiTags('SellerOrders')
+@ApiTags('SellerOrder')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('seller/purchase-orders')
