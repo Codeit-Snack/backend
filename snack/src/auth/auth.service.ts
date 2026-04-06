@@ -179,11 +179,12 @@ export class AuthService {
     );
     const refreshExpiresAt = this.getExpiryDate(refreshExpiresIn);
 
+    // refresh_token_hash 는 UNIQUE — 빈 문자열이면 두 번째 로그인부터 P2002 로 500 발생
     const session = await this.prisma.auth_sessions.create({
       data: {
         user_id: user.id,
         current_organization_id: primaryMembership.organizationId,
-        refresh_token_hash: '',
+        refresh_token_hash: `login_pending_${randomBytes(24).toString('hex')}`,
         expires_at: refreshExpiresAt,
         status: auth_sessions_status.ACTIVE,
       },

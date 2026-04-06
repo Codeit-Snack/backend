@@ -25,8 +25,13 @@ async function bootstrap() {
     configService.get<string>('THROTTLE_LIMIT', '10'),
   );
 
-  // Render 등 리버스 프록시: X-Forwarded-For 신뢰. 안 켜면 express-rate-limit이 ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
-  if (nodeEnv === 'production') {
+  // Render 등 리버스 프록시: X-Forwarded-For 신뢰. Config가 덮어쓰기 전에 process.env도 본다.
+  const trustProxy =
+    process.env.NODE_ENV === 'production' ||
+    nodeEnv === 'production' ||
+    process.env.TRUST_PROXY === '1' ||
+    process.env.TRUST_PROXY === 'true';
+  if (trustProxy) {
     app.set('trust proxy', 1);
   }
 
