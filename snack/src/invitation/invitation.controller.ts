@@ -11,6 +11,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiQuery,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
@@ -45,6 +46,11 @@ export class InvitationController {
     summary: '초대 기반 회원가입',
     description:
       '가입되지 않은 이메일이 초대받은 경우. 회원가입 + 초대 수락 + 로그인까지 한 번에 처리',
+  })
+  @ApiResponse({
+    status: 201,
+    description:
+      '`{ success: true, data: { user, organization, membership, tokens } }`',
   })
   signUpWithInvitation(@Body() dto: InviteSignUpDto) {
     return this.invitationService.signUpWithInvitation(dto);

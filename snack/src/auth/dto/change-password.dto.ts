@@ -1,12 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MinLength } from 'class-validator';
+import { ApiPasswordProperty } from '@/common/swagger/api-password.decorator';
 
 export class ChangePasswordDto {
-  @ApiProperty({ description: '현재 비밀번호' })
+  @ApiPasswordProperty({ description: '현재 비밀번호' })
   @IsString()
   currentPassword: string;
 
-  @ApiProperty({ description: '새 비밀번호', minLength: 8 })
+  @ApiPasswordProperty({ description: '새 비밀번호 (최소 8자)', minLength: 8 })
   @IsString()
   @MinLength(8)
   newPassword: string;

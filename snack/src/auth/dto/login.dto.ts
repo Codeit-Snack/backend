@@ -6,6 +6,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { ApiPasswordProperty } from '@/common/swagger/api-password.decorator';
 
 export class LoginDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -13,7 +14,7 @@ export class LoginDto {
   @MaxLength(320)
   email: string;
 
-  @ApiProperty({ example: 'password123', minLength: 8 })
+  @ApiPasswordProperty({ minLength: 8, maxLength: 64 })
   @IsString()
   @MinLength(8)
   @MaxLength(64)
