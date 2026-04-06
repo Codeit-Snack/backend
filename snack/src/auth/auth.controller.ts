@@ -25,6 +25,11 @@ export class AuthController {
 
   @Post('signup')
   @ApiOperation({ summary: '회원가입' })
+  @ApiResponse({
+    status: 201,
+    description:
+      '`{ success: true, data: { user, organization, membership, tokens } }`',
+  })
   signUp(@Body() dto: SignUpDto) {
     return this.authService.signUp(dto);
   }
@@ -36,7 +41,7 @@ export class AuthController {
       '응답 `data.tokens`에 accessToken·refreshToken. 이후 API는 Bearer accessToken 사용.',
   })
   @ApiResponse({
-    status: 200,
+    status: 201,
     description:
       '`{ success: true, data: { user, organization, membership, tokens } }`',
   })
