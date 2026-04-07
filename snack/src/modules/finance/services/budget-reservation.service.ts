@@ -119,12 +119,6 @@ export class BudgetReservationService {
       y,
       m,
     );
-    if (!funds.hasPeriod) {
-      throw new AppException(
-        ErrorCode.BAD_REQUEST,
-        '해당 월(UTC)에 설정된 예산이 없습니다. 먼저 월별 예산을 등록한 뒤 예약하세요.',
-      );
-    }
     if (funds.remaining.lt(reserved)) {
       throw new AppException(
         ErrorCode.CONFLICT,

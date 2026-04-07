@@ -1,38 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
-  OrgRole,
   Prisma,
   PurchaseRequestStatus,
   purchase_orders_status,
 } from '@prisma/client';
 import { SellerOrderService } from './seller-order.service';
 import { PrismaService } from '../../../database/prisma.service';
-import { AppException } from '../../../common/exceptions/app.exception';
+import { AuditLogService } from '../../../modules/audit/audit-log.service';
 import { ErrorCode } from '../../../common/enums/error-code.enum';
-import type { JwtPayload } from '../../../common/types/jwt-payload.type';
-
-function adminPayload(): JwtPayload {
-  return {
-    sub: '99',
-    email: 'admin@seller.test',
-    organizationId: '10',
-    role: OrgRole.ADMIN,
-    sessionId: 'sess-1',
-  };
-}
-
-function memberPayload(): JwtPayload {
-  return {
-    sub: '100',
-    email: 'member@seller.test',
-    organizationId: '10',
-    role: OrgRole.MEMBER,
-    sessionId: 'sess-2',
-  };
-}
 
 describe('SellerOrderService', () => {
   let service: SellerOrderService;
+  let auditLog: { log: jest.Mock };
   let prisma: jest.Mocked<
     Pick<
       PrismaService,
@@ -44,6 +23,7 @@ describe('SellerOrderService', () => {
   >;
 
   beforeEach(async () => {
+    auditLog = { log: jest.fn().mockResolvedValue(undefined) };
     prisma = {
       purchase_orders: {
         findMany: jest.fn(),
@@ -66,13 +46,14 @@ describe('SellerOrderService', () => {
       providers: [
         SellerOrderService,
         { provide: PrismaService, useValue: prisma },
+        { provide: AuditLogService, useValue: auditLog },
       ],
     }).compile();
 
     service = module.get(SellerOrderService);
   });
 
-  describe('findAll', () => {
+  describe('list', () => {
     it('returns paginated summaries', async () => {
       const row = {
         id: 1n,
@@ -81,12 +62,15 @@ describe('SellerOrderService', () => {
         status: purchase_orders_status.PENDING_SELLER_APPROVAL,
         items_amount: new Prisma.Decimal('15000'),
         created_at: new Date('2025-01-01T00:00:00.000Z'),
-        _count: { purchase_order_items: 0 },
+        purchase_requests: {
+          id: 5n,
+          status: PurchaseRequestStatus.OPEN,
+        },
       };
       (prisma.purchase_orders.findMany as jest.Mock).mockResolvedValue([row]);
       (prisma.purchase_orders.count as jest.Mock).mockResolvedValue(1);
 
-      const result = await service.findAll(10, {
+      const result = await service.list(10, {
         page: 1,
         limit: 10,
       });
@@ -99,7 +83,7 @@ describe('SellerOrderService', () => {
         buyerOrganizationId: 2,
         status: purchase_orders_status.PENDING_SELLER_APPROVAL,
         itemsAmount: '15000',
-        lineCount: 0,
+        purchaseRequestStatus: PurchaseRequestStatus.OPEN,
       });
       expect(prisma.purchase_orders.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -110,156 +94,92 @@ describe('SellerOrderService', () => {
   });
 
   describe('findOne', () => {
-    it('throws when order missing', async () => {
+    it('returns null when order missing', async () => {
       (prisma.purchase_orders.findFirst as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.findOne(10, 999)).rejects.toThrow(AppException);
-      await expect(service.findOne(10, 999)).rejects.toMatchObject({
-        errorCode: ErrorCode.RESOURCE_NOT_FOUND,
-      });
+      await expect(service.findOne(10, 999)).resolves.toBeNull();
     });
   });
 
   describe('approve', () => {
-    it('forbids non-admin roles', async () => {
-      await expect(
-        service.approve(10, 1, memberPayload(), {}),
-      ).rejects.toMatchObject({ errorCode: ErrorCode.FORBIDDEN });
-      expect(prisma.$transaction).not.toHaveBeenCalled();
-    });
-
-    it('runs transaction: creates items, approves, rolls up purchase request', async () => {
-      const orderRow = {
+    it('approves pending order, syncs purchase request, audit log', async () => {
+      const po = {
         id: 1n,
         purchase_request_id: 100n,
-        buyer_organization_id: 2n,
-        seller_organization_id: 10n,
         status: purchase_orders_status.PENDING_SELLER_APPROVAL,
-        platform: 'OTHER' as const,
-        external_order_no: null,
-        order_url: null,
-        items_amount: new Prisma.Decimal('2000'),
-        shipping_fee: new Prisma.Decimal('0'),
-        approved_at: null,
-        rejected_at: null,
-        ordered_at: null,
-        shipping_status: null,
-        delivered_at: null,
-        note: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-        purchased_by_user_id: null,
-        purchase_requests: { status: PurchaseRequestStatus.OPEN },
-        purchase_order_items: [],
       };
-
-      const priLine = {
-        id: 50n,
-        purchase_request_id: 100n,
-        seller_organization_id: 10n,
-        product_id: 5n,
-        product_name_snapshot: 'Test Snack',
-        product_url_snapshot: null,
-        unit_price_snapshot: new Prisma.Decimal('1000'),
-        quantity: 2,
-        line_total: new Prisma.Decimal('2000'),
-        created_at: new Date(),
-      };
-
-      const buyerOrg = { id: 2n, name: 'Buyer Co' };
-
-      const orderItemRow = {
-        id: 77n,
-        purchase_order_id: 1n,
-        purchase_request_item_id: 50n,
-        product_id: 5n,
-        product_name_snapshot: 'Test Snack',
-        product_url_snapshot: null,
-        unit_price_snapshot: new Prisma.Decimal('1000'),
-        quantity: 2,
-        line_total: new Prisma.Decimal('2000'),
-        created_at: new Date('2025-01-02T00:00:00.000Z'),
-      };
-
-      const detailRow = {
-        ...orderRow,
-        status: purchase_orders_status.APPROVED,
-        approved_at: new Date('2025-01-02T00:00:00.000Z'),
-        purchase_order_items: [orderItemRow],
-        purchase_requests: { status: PurchaseRequestStatus.PARTIALLY_APPROVED },
-        organizations_purchase_orders_buyer_organization_idToorganizations:
-          buyerOrg,
-        purchase_order_decisions: [],
-      };
-
       const tx = {
         purchase_orders: {
-          findFirst: jest
-            .fn()
-            .mockResolvedValueOnce(orderRow)
-            .mockResolvedValueOnce(detailRow),
+          findFirst: jest.fn().mockResolvedValue(po),
           update: jest.fn().mockResolvedValue({}),
-          updateMany: jest.fn(),
-        },
-        purchase_request_items: {
-          findMany: jest.fn().mockResolvedValue([priLine]),
-        },
-        purchase_order_items: {
-          createMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findMany: jest
+            .fn()
+            .mockResolvedValue([{ status: purchase_orders_status.APPROVED }]),
         },
         purchase_order_decisions: {
           create: jest.fn().mockResolvedValue({}),
         },
         purchaseRequest: {
-          findUnique: jest.fn().mockResolvedValue({
-            id: 100n,
-            status: PurchaseRequestStatus.OPEN,
-            purchase_orders: [
-              { status: purchase_orders_status.PENDING_SELLER_APPROVAL },
-              { status: purchase_orders_status.APPROVED },
-            ],
-          }),
+          findUnique: jest
+            .fn()
+            .mockResolvedValue({ id: 100n, status: PurchaseRequestStatus.OPEN }),
           update: jest.fn().mockResolvedValue({}),
         },
       };
-
       (prisma.$transaction as jest.Mock).mockImplementation(
         async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
       );
 
-      const result = await service.approve(10, 1, adminPayload(), {
-        shippingFee: 500,
-      });
+      const findOneSpy = jest
+        .spyOn(service, 'findOne')
+        .mockResolvedValue({
+          id: 1,
+          status: purchase_orders_status.APPROVED,
+        } as Awaited<ReturnType<SellerOrderService['findOne']>>);
 
-      expect(tx.purchase_order_items.createMany).toHaveBeenCalled();
+      const result = await service.approve(10, 99, 1, { shippingFee: '500' });
+
+      findOneSpy.mockRestore();
+
+      expect(tx.purchase_order_decisions.create).toHaveBeenCalled();
       expect(tx.purchase_orders.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             status: purchase_orders_status.APPROVED,
-            shipping_fee: new Prisma.Decimal(500),
+            shipping_fee: new Prisma.Decimal('500'),
           }),
         }),
       );
-      expect(tx.purchase_order_decisions.create).toHaveBeenCalled();
       expect(tx.purchaseRequest.update).toHaveBeenCalled();
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'SELLER_ORDER_APPROVE',
+        }),
+      );
       expect(result).toMatchObject({
         id: 1,
         status: purchase_orders_status.APPROVED,
-        buyerOrganizationName: 'Buyer Co',
       });
     });
   });
 
   describe('updateShipping', () => {
-    it('rejects when order not approved/purchased', async () => {
-      (prisma.purchase_orders.findFirst as jest.Mock).mockResolvedValue({
-        id: 1n,
-        status: purchase_orders_status.PENDING_SELLER_APPROVAL,
-        delivered_at: null,
-      });
+    it('rejects when order not purchased', async () => {
+      (prisma.$transaction as jest.Mock).mockImplementation(
+        async (fn: (t: unknown) => Promise<unknown>) =>
+          fn({
+            purchase_orders: {
+              findFirst: jest.fn().mockResolvedValue({
+                id: 1n,
+                status: purchase_orders_status.PENDING_SELLER_APPROVAL,
+              }),
+              update: jest.fn(),
+            },
+          }),
+      );
 
       await expect(
-        service.updateShipping(10, 1, adminPayload(), {
+        service.updateShipping(10, 99, 1, {
           shippingStatus: 'SHIPPED',
         }),
       ).rejects.toMatchObject({ errorCode: ErrorCode.CONFLICT });
