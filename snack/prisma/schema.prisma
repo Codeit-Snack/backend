@@ -11,6 +11,7 @@ model Organization {
   name                                                                  String                   @db.VarChar(200)
   orgType                                                               OrgType                  @default(BUSINESS) @map("org_type")
   businessNumber                                                        String?                  @map("business_number") @db.VarChar(30)
+  defaultMonthlyBudget                                                  Decimal                  @default(0.00) @map("default_monthly_budget") @db.Decimal(14, 2)
   createdAt                                                             DateTime                 @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
   updatedAt                                                             DateTime                 @default(dbgenerated("(now())")) @updatedAt @map("updated_at") @db.DateTime(0)
   audit_logs                                                            audit_logs[]

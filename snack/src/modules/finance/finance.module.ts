@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '@/modules/audit/audit.module';
+import { BudgetMonthlyDefaultController } from '@/modules/finance/controllers/budget-monthly-default.controller';
 import { BudgetPeriodController } from '@/modules/finance/controllers/budget-period.controller';
 import { BudgetReservationController } from '@/modules/finance/controllers/budget-reservation.controller';
 import { ExpenseController } from '@/modules/finance/controllers/expense.controller';
@@ -12,6 +13,7 @@ import { FinanceAuditQueryService } from '@/modules/finance/services/finance-aud
 @Module({
   imports: [AuditModule],
   controllers: [
+    BudgetMonthlyDefaultController,
     BudgetPeriodController,
     BudgetReservationController,
     ExpenseController,
