@@ -151,7 +151,15 @@ async function bootstrap() {
     .addTag('Cart', '장바구니')
     .addTag('PurchaseRequest', '구매 요청(구매자)')
     .addTag('SellerOrder', '판매자 주문(PO)')
-    .addTag('Budget', '예산·예약')
+    .addTag(
+      'Budget',
+      [
+        '구매자 조직 기준 월별 예산(budget_periods)과 판매자 주문(PO) 단위 예산 예약(budget_reservations).',
+        '월 상한은 연·월당 1행; 예약은 PO당 1행(ACTIVE→RELEASED/CONSUMED).',
+        '`/budget/monthly-default`는 조직의 “매달 시작 예산” 기본값(organizations.default_monthly_budget).',
+        '월별 행이 없을 때 첫 조회·요약·잔액 계산 시 기본값으로 행이 자동 생성됨.',
+      ].join(' '),
+    )
     .addTag('Expenses', '지출')
     .addTag('Audit', '감사 로그 조회')
     .addTag('Mail', '메일 테스트')

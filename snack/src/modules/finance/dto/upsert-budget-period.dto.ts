@@ -17,7 +17,11 @@ export class UpsertBudgetPeriodDto {
   @Max(12)
   month!: number;
 
-  @ApiProperty({ description: '월 예산 금액', example: 500000 })
+  @ApiProperty({
+    description:
+      '해당 연·월의 예산 상한(원). 관리자가 확정하는 값으로, `POST /budget/periods` 저장 시 `hasPeriodConfigured`가 true가 됨.',
+    example: 2_300_000,
+  })
   @Type(() => Number)
   @IsNumber()
   @Min(0)
