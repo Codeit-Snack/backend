@@ -622,7 +622,7 @@ export class AuthService {
     const rawToken = randomBytes(32).toString('hex');
     const tokenHash = createHash('sha256').update(rawToken).digest('hex');
 
-    await this.prisma.password_reset_tokens.create({
+    const resetRow = await this.prisma.password_reset_tokens.create({
       data: {
         user_id: user.id,
         token_hash: tokenHash,
@@ -650,8 +650,11 @@ export class AuthService {
       });
     } catch (err) {
       console.error('password reset mail failed:', err);
+      await this.prisma.password_reset_tokens.delete({
+        where: { id: resetRow.id },
+      });
       throw new InternalServerErrorException(
-        '비밀번호 재설정 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+        '비밀번호 재설정 메일 발송에 실패했습니다. SMTP 설정을 확인한 뒤 잠시 후 다시 시도해 주세요.',
       );
     }
 
