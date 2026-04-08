@@ -74,10 +74,16 @@ export class InvitationService {
       },
     });
     if (pendingInvite) {
-      throw new AppException(
-        ErrorCode.ALREADY_EXISTS,
-        '이미 대기 중인 초대가 있습니다.',
-      );
+      return this.refreshPendingInvitationAndSendMail({
+        invitation: pendingInvite,
+        org,
+        organizationId,
+        email,
+        dto,
+        currentUser,
+        expiresHours,
+        ttlSeconds,
+      });
     }
 
     const token = crypto.randomBytes(32).toString('hex');
@@ -667,6 +673,108 @@ export class InvitationService {
       }
       throw error;
     }
+  }
+
+  /**
+   * 동일 조직·이메일에 PENDING 초대가 이미 있을 때: 409 대신 토큰·만료를 갱신해 메일 재발송.
+   * (Redis 키 유실 등으로 링크만 죽고 DB에 PENDING만 남은 경우 재초대가 막히던 문제 완화)
+   */
+  private async refreshPendingInvitationAndSendMail(params: {
+    invitation: {
+      id: bigint;
+      roleToGrant: OrgRole;
+      inviteeName: string | null;
+      resentCount: number;
+      lastSentAt: Date | null;
+    };
+    org: { name: string };
+    organizationId: bigint;
+    email: string;
+    dto: InviteDto;
+    currentUser: CurrentUserPayload;
+    expiresHours: number;
+    ttlSeconds: number;
+  }): Promise<{ message: string; email: string; expiresAt: string }> {
+    const {
+      invitation,
+      org,
+      organizationId,
+      email,
+      dto,
+      currentUser,
+      expiresHours,
+      ttlSeconds,
+    } = params;
+
+    const cooldownMinutes = Number(
+      this.configService.get<string>('INVITATION_RESEND_COOLDOWN_MINUTES', '5'),
+    );
+    if (invitation.lastSentAt) {
+      const elapsedMs = Date.now() - invitation.lastSentAt.getTime();
+      const cooldownMs = cooldownMinutes * 60 * 1000;
+      if (elapsedMs < cooldownMs) {
+        const waitSec = Math.ceil((cooldownMs - elapsedMs) / 1000);
+        throw new AppException(
+          ErrorCode.RATE_LIMIT_EXCEEDED,
+          `잠시 후 다시 시도해 주세요. (${waitSec}초 남음)`,
+        );
+      }
+    }
+
+    await this.clearInvitationRedis(invitation.id);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(token);
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+
+    const roleToGrant = dto.roleToGrant ?? invitation.roleToGrant;
+    const inviteeName =
+      dto.inviteeName !== undefined && dto.inviteeName !== null
+        ? dto.inviteeName.trim() || null
+        : invitation.inviteeName;
+
+    await this.prisma.invitation.update({
+      where: { id: invitation.id },
+      data: {
+        tokenHash,
+        expiresAt,
+        roleToGrant,
+        inviteeName,
+        lastSentAt: new Date(),
+        resentCount: { increment: 1 },
+        invitedByUserId: BigInt(currentUser.sub),
+      },
+    });
+
+    await this.persistInvitationToken(
+      invitation.id,
+      organizationId,
+      email,
+      roleToGrant,
+      token,
+      expiresAt,
+    );
+
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:5173',
+    );
+    const inviteLink = `${frontendUrl}/invite/accept?token=${token}`;
+
+    await this.mail.sendInvitationEmail({
+      to: email,
+      inviteeName: inviteeName ?? undefined,
+      organizationName: org.name,
+      inviteLink,
+      expiresInHours: expiresHours,
+    });
+
+    return {
+      message:
+        '대기 중이던 초대가 있어 링크를 갱신하고 초대 메일을 다시 보냈습니다.',
+      email,
+      expiresAt: expiresAt.toISOString(),
+    };
   }
 
   private assertOrgAdminForInvitations(
