@@ -59,7 +59,13 @@ export class InvitationController {
   @Post('organizations/:organizationId/invite')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: '이메일로 조직 멤버 초대' })
+  @ApiOperation({
+    summary: '이메일로 조직 멤버 초대',
+    description:
+      '동일 이메일에 유효한 PENDING 초대가 이미 있으면 409 대신 링크·만료를 갱신해 메일을 다시 보냅니다. ' +
+      '연속 호출은 `INVITATION_RESEND_COOLDOWN_MINUTES`(기본 5분) 간격이 필요합니다.',
+  })
+  @ApiResponse({ status: 429, description: '초대 갱신 쿨다운 중' })
   async invite(
     @Param('organizationId') organizationId: string,
     @Body() dto: InviteDto,
