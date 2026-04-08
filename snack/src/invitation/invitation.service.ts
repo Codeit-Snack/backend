@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { JwtSignOptions } from '@nestjs/jwt';
@@ -120,13 +124,21 @@ export class InvitationService {
     );
     const inviteLink = `${frontendUrl}/invite/accept?token=${token}`;
 
-    await this.mail.sendInvitationEmail({
-      to: email,
-      inviteeName: dto.inviteeName,
-      organizationName: org.name,
-      inviteLink,
-      expiresInHours: expiresHours,
-    });
+    try {
+      await this.mail.sendInvitationEmail({
+        to: email,
+        inviteeName: dto.inviteeName,
+        organizationName: org.name,
+        inviteLink,
+        expiresInHours: expiresHours,
+      });
+    } catch {
+      await this.clearInvitationRedis(invitation.id);
+      await this.prisma.invitation.delete({ where: { id: invitation.id } });
+      throw new InternalServerErrorException(
+        '초대 메일 발송에 실패했습니다. SMTP 설정을 확인한 뒤 다시 시도해 주세요.',
+      );
+    }
 
     await this.prisma.invitation.update({
       where: { id: invitation.id },
