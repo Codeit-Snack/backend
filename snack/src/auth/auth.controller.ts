@@ -32,7 +32,7 @@ export class AuthController {
   @ApiResponse({
     status: 201,
     description:
-      '`{ success: true, data: { user, organization, membership, tokens? } }`',
+      '`{ success: true, data: { user, organization: { id, name, businessNumber? }, membership, tokens? } }` — 조직 타입 필드 없음.',
   })
   signUp(@Body() dto: SignUpDto) {
     return this.authService.signUp(dto);
@@ -47,7 +47,7 @@ export class AuthController {
   @ApiResponse({
     status: 201,
     description:
-      '`{ success: true, data: { user, organization, membership, tokens } }`',
+      '`{ success: true, data: { user, organization: { id, name, businessNumber? }, membership, tokens } }`',
   })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -133,7 +133,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description:
-      '`{ success: true, data: { user, organization, membership } }`',
+      '`{ success: true, data: { user, organization: { id, name, businessNumber? }, membership } }`',
   })
   getMe(@CurrentUser() currentUser: CurrentUserPayload) {
     return this.authService.getMe(currentUser);

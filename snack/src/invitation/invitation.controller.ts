@@ -50,7 +50,7 @@ export class InvitationController {
   @ApiResponse({
     status: 201,
     description:
-      '`{ success: true, data: { user, organization, membership, tokens } }`',
+      '`{ success: true, data: { user, organization: { id, name, businessNumber? }, membership, tokens } }`',
   })
   signUpWithInvitation(@Body() dto: InviteSignUpDto) {
     return this.invitationService.signUpWithInvitation(dto);
