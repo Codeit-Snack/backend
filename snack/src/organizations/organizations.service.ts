@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrgRole, OrgType, Prisma } from '@prisma/client';
+import { OrgRole, Prisma } from '@prisma/client';
 import { PrismaService } from '@/database/prisma.service';
 import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
 import { CreateOrganizationDto } from '@/organizations/dto/create-organization.dto';
@@ -21,24 +21,10 @@ export class OrganizationsService {
     const name = dto.name.trim();
     const businessNumber = dto.businessNumber?.trim() ?? null;
 
-    if (dto.orgType === OrgType.BUSINESS && !businessNumber) {
-      throw new BadRequestException(
-        'BUSINESS 조직은 businessNumber가 필요합니다.',
-      );
-    }
-
-    if (dto.orgType === OrgType.PERSONAL && businessNumber) {
-      throw new BadRequestException(
-        'PERSONAL 조직은 businessNumber를 보낼 수 없습니다.',
-      );
-    }
-
     const organization = await this.prisma.organization.create({
       data: {
         name,
-        orgType: dto.orgType,
-        businessNumber:
-          dto.orgType === OrgType.BUSINESS ? businessNumber : null,
+        businessNumber,
         members: {
           create: {
             userId: BigInt(currentUser.sub),
@@ -63,7 +49,6 @@ export class OrganizationsService {
       organization: {
         id: organization.id.toString(),
         name: organization.name,
-        orgType: organization.orgType,
         businessNumber: organization.businessNumber,
       },
       membership: {
@@ -96,7 +81,6 @@ export class OrganizationsService {
       organization: {
         id: organization.id.toString(),
         name: organization.name,
-        orgType: organization.orgType,
         businessNumber: organization.businessNumber,
       },
     };
@@ -128,7 +112,6 @@ export class OrganizationsService {
 
     const data: {
       name?: string;
-      orgType?: OrgType;
       businessNumber?: string | null;
     } = {};
 
@@ -136,24 +119,8 @@ export class OrganizationsService {
       data.name = dto.name.trim();
     }
 
-    if (dto.orgType !== undefined) {
-      data.orgType = dto.orgType;
-    }
-
     if (dto.businessNumber !== undefined) {
       data.businessNumber = dto.businessNumber?.trim() || null;
-    }
-
-    if (dto.orgType === OrgType.BUSINESS && !data.businessNumber) {
-      throw new BadRequestException(
-        'BUSINESS 조직은 businessNumber가 필요합니다.',
-      );
-    }
-
-    if (dto.orgType === OrgType.PERSONAL && data.businessNumber) {
-      throw new BadRequestException(
-        'PERSONAL 조직은 businessNumber를 보낼 수 없습니다.',
-      );
     }
 
     const organization = await this.prisma.organization.update({
@@ -166,7 +133,6 @@ export class OrganizationsService {
       organization: {
         id: organization.id.toString(),
         name: organization.name,
-        orgType: organization.orgType,
         businessNumber: organization.businessNumber,
       },
     };

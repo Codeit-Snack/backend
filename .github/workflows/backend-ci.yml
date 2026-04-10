@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Unit tests
+        run: npm test
+
       - name: Build
         run: npm run build
 
@@ -52,3 +55,40 @@ jobs:
             exit 0
           fi
           curl -fsS -X POST "$HOOK"
+
+  # main 푸시 + EC2_* 시크릿이 있을 때만: EC2 에서 git pull → snack 에서 migrate·build → pm2 재시작.
+  # 클론 경로: 저장소 Settings → Variables → EC2_REPO_ROOT (예: /home/ubuntu/backend). 미설정 시 원격에서 $HOME/backend 사용.
+  deploy-ec2:
+    name: Deploy to AWS EC2
+    needs: build
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      secrets.EC2_HOST
+    runs-on: ubuntu-latest
+    env:
+      EC2_REPO_ROOT: ${{ vars.EC2_REPO_ROOT }}
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: EC2_REPO_ROOT
+          script_stop: true
+          script: |
+            set -euo pipefail
+            ROOT="${EC2_REPO_ROOT:-$HOME/backend}"
+            cd "$ROOT"
+            git fetch origin main
+            git checkout main
+            git pull origin main
+            cd snack
+            npm ci
+            npx prisma generate
+            npx prisma migrate deploy
+            npm run build
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 restart snack-api || pm2 restart all
+            fi

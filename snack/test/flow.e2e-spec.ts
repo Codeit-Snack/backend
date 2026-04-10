@@ -69,7 +69,6 @@ function okData<T>(res: request.Response, code?: number): T {
           password,
           displayName: 'Buyer Admin',
           organizationName: `Buyer Co ${suffix}`,
-          orgType: 'PERSONAL',
         });
       const buyer = okData<{
         user: { id: string };
@@ -85,7 +84,6 @@ function okData<T>(res: request.Response, code?: number): T {
           password,
           displayName: 'Seller Admin',
           organizationName: `Seller Co ${suffix}`,
-          orgType: 'PERSONAL',
         });
       const seller = okData<{
         user: { id: string };

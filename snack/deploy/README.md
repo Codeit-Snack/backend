@@ -46,3 +46,11 @@ docker build -t snack-api:latest .
 ---
 
 **로컬 MySQL + 마이그레이션**은 프로젝트 루트 `docker-compose.yml` — 팀원 안내는 [docs/TEAM.md](../docs/TEAM.md).
+
+## 7. GitHub Actions로 `main` → EC2 반영
+
+1. EC2에 저장소를 한 번 클론하고 `.env`·Node·PM2(또는 Docker)를 준비합니다. GitHub Actions는 **저장소 루트**에서 `git pull`한 뒤 **`snack/`** 으로 들어가 빌드합니다.
+2. GitHub 저장소 **Settings → Secrets and variables → Actions**  
+   - **Secrets:** `EC2_HOST`(퍼블릭 DNS 또는 IP), `EC2_USER`(예: `ubuntu`), `EC2_SSH_KEY`(배포용 SSH 개인 키 PEM 전체)  
+   - **Variables:** `EC2_REPO_ROOT` — EC2 위에서 이 저장소가 클론된 **디렉터리**(예: `/home/ubuntu/backend`). 생략 시 원격 스크립트가 `$HOME/backend`를 사용합니다.
+3. `main`에 푸시되면 워크플로 `Backend CI`의 `deploy-ec2` 잡이 실행됩니다(`EC2_HOST`가 없으면 이 잡은 스킵됩니다). PM2 프로세스 이름은 기본 `snack-api`를 재시도하고, 없으면 `pm2 restart all`을 호출합니다. Docker 전용 배포라면 이 스크립트 대신 compose 명령으로 바꾸면 됩니다.
