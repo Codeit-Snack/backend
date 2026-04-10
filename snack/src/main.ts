@@ -113,6 +113,9 @@ async function bootstrap() {
   const swaggerDescription = [
     'SNACK REST API — 인증·장바구니·구매 요청·판매자 주문·예산 등.',
     '',
+    '**조직** 개인/기업 구분(`OrgType`) 없음. 조직은 이름·선택적 `businessNumber`만 두고,',
+    '권한은 **멤버십 `OrgRole`**: `SUPER_ADMIN` · `ADMIN` · `MEMBER` 로만 구분합니다.',
+    '',
     '**성공 응답** `{ "success": true, "data": ... }` (전역 인터셉터).',
     '',
     '**인증** `Authorization: Bearer <accessToken>`. UI **Authorize**에 토큰 입력.',
@@ -130,7 +133,7 @@ async function bootstrap() {
   const swaggerBuilder = new DocumentBuilder()
     .setTitle('SNACK API')
     .setDescription(swaggerDescription)
-    .setVersion('1.0.0')
+    .setVersion('1.1.0')
     .addBearerAuth(
       {
         type: 'http',
@@ -144,7 +147,10 @@ async function bootstrap() {
     )
     .addTag('Auth', '회원가입·로그인·토큰·비밀번호')
     .addTag('Users', '사용자')
-    .addTag('Organizations', '조직·멤버')
+    .addTag(
+      'Organizations',
+      '조직·멤버. 조직 타입 없음; `businessNumber`는 선택. 멤버 역할(SUPER_ADMIN/ADMIN/MEMBER)로 권한 구분.',
+    )
     .addTag('Invitations', '초대')
     .addTag('Categories', '카탈로그 카테고리')
     .addTag('Products', '판매 상품')

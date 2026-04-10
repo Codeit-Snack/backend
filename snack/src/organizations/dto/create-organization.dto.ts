@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OrgType } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateOrganizationDto {
   @ApiProperty({ example: 'Snack Team' })
@@ -8,11 +7,10 @@ export class CreateOrganizationDto {
   @MaxLength(100)
   name: string;
 
-  @ApiProperty({ enum: OrgType, example: OrgType.BUSINESS })
-  @IsEnum(OrgType)
-  orgType: OrgType;
-
-  @ApiPropertyOptional({ example: '1234567890' })
+  @ApiPropertyOptional({
+    example: '1234567890',
+    description: '선택. 사업자등록번호 등(조직 유형 구분 없음).',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(30)

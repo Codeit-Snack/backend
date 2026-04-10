@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'crypto';
-import { OrgRole, OrgType, Prisma, auth_sessions_status } from '@prisma/client';
+import { OrgRole, Prisma, auth_sessions_status } from '@prisma/client';
 import { ChangePasswordDto } from '@/auth/dto/change-password.dto';
 import { ForgotPasswordDto } from '@/auth/dto/forgot-password.dto';
 import { ResetPasswordDto } from '@/auth/dto/reset-password.dto';
@@ -107,27 +107,13 @@ export class AuthService {
       this.configService.get<string>('BCRYPT_ROUNDS', '12'),
     );
 
-    if (dto.orgType === OrgType.BUSINESS && !businessNumber) {
-      throw new BadRequestException(
-        'BUSINESS 조직은 businessNumber가 필요합니다.',
-      );
-    }
-
-    if (dto.orgType === OrgType.PERSONAL && businessNumber) {
-      throw new BadRequestException(
-        'PERSONAL 조직은 businessNumber를 보낼 수 없습니다.',
-      );
-    }
-
     const passwordHash = await hashPassword(dto.password, bcryptRounds);
 
     try {
       const organization = await this.prisma.organization.create({
         data: {
           name: organizationName,
-          orgType: dto.orgType,
-          businessNumber:
-            dto.orgType === OrgType.BUSINESS ? businessNumber : null,
+          businessNumber,
           members: {
             create: {
               role: OrgRole.SUPER_ADMIN,
@@ -172,7 +158,6 @@ export class AuthService {
         organization: {
           id: organization.id.toString(),
           name: organization.name,
-          orgType: organization.orgType,
           businessNumber: organization.businessNumber,
         },
         membership: {
@@ -294,7 +279,7 @@ export class AuthService {
       organization: {
         id: primaryMembership.organization.id.toString(),
         name: primaryMembership.organization.name,
-        orgType: primaryMembership.organization.orgType,
+        businessNumber: primaryMembership.organization.businessNumber,
       },
       membership: {
         id: primaryMembership.id.toString(),
@@ -479,7 +464,7 @@ export class AuthService {
       organization: {
         id: membership.organization.id.toString(),
         name: membership.organization.name,
-        orgType: membership.organization.orgType,
+        businessNumber: membership.organization.businessNumber,
       },
       membership: {
         id: membership.id.toString(),
