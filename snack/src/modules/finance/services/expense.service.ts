@@ -12,6 +12,7 @@ import { AuditLogService } from '@/modules/audit/audit-log.service';
 import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
 import { CreateExpenseDto } from '@/modules/finance/dto/create-expense.dto';
 import { ExpenseListQueryDto } from '@/modules/finance/dto/expense-list-query.dto';
+import { ExpenseListSort } from '@/modules/finance/dto/expense-list-sort.enum';
 
 @Injectable()
 export class ExpenseService {
@@ -139,12 +140,57 @@ export class ExpenseService {
       }
     }
 
+    const sort = query.sort ?? ExpenseListSort.ExpensedAtDesc;
+    let orderBy: Prisma.expensesOrderByWithRelationInput[];
+    switch (sort) {
+      case ExpenseListSort.AmountAsc:
+        orderBy = [{ amount: 'asc' }, { id: 'asc' }];
+        break;
+      case ExpenseListSort.AmountDesc:
+        orderBy = [{ amount: 'desc' }, { id: 'desc' }];
+        break;
+      case ExpenseListSort.ExpensedAtDesc:
+      default:
+        orderBy = [{ expensed_at: 'desc' }, { id: 'desc' }];
+        break;
+    }
+
     const [rows, total] = await Promise.all([
       this.prisma.expenses.findMany({
         where,
-        orderBy: { expensed_at: 'desc' },
+        orderBy,
         skip,
         take: limit,
+        include: {
+          purchase_requests: {
+            select: {
+              requestedAt: true,
+              users: {
+                select: {
+                  email: true,
+                  profile: { select: { displayName: true } },
+                },
+              },
+              purchase_request_items: {
+                select: { product_name_snapshot: true },
+                orderBy: { id: 'asc' },
+                take: 5,
+              },
+            },
+          },
+          purchase_orders: {
+            select: {
+              approved_at: true,
+              ordered_at: true,
+            },
+          },
+          users: {
+            select: {
+              email: true,
+              profile: { select: { displayName: true } },
+            },
+          },
+        },
       }),
       this.prisma.expenses.count({ where }),
     ]);
@@ -159,6 +205,20 @@ export class ExpenseService {
         amount: this.decStr(row.amount),
         expensedAt: row.expensed_at.toISOString(),
         note: row.note,
+        purchaseRequestRequestedAt:
+          row.purchase_requests.requestedAt.toISOString(),
+        requesterEmail: row.purchase_requests.users.email,
+        requesterDisplayName:
+          row.purchase_requests.users.profile?.displayName ?? null,
+        productNamesPreview: row.purchase_requests.purchase_request_items.map(
+          (i) => i.product_name_snapshot,
+        ),
+        purchaseOrderApprovedAt:
+          row.purchase_orders.approved_at?.toISOString() ?? null,
+        purchaseOrderOrderedAt:
+          row.purchase_orders.ordered_at?.toISOString() ?? null,
+        recordedByEmail: row.users?.email ?? null,
+        recordedByDisplayName: row.users?.profile?.displayName ?? null,
       })),
       total,
       page,

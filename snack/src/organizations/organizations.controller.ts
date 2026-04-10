@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -15,6 +16,7 @@ import { OrganizationsService } from '@/organizations/organizations.service';
 import { CreateOrganizationDto } from '@/organizations/dto/create-organization.dto';
 import { UpdateOrganizationDto } from '@/organizations/dto/update-organization.dto';
 import { UpdateOrganizationMemberRoleDto } from '@/organizations/dto/update-organization-member-role.dto';
+import { OrganizationMembersQueryDto } from '@/organizations/dto/organization-members-query.dto';
 
 @ApiTags('Organizations')
 @ApiBearerAuth('access-token')
@@ -49,9 +51,16 @@ export class OrganizationsController {
   }
 
   @Get('members')
-  @ApiOperation({ summary: '현재 조직 멤버 목록 조회' })
-  getMembers(@CurrentUser() currentUser: CurrentUserPayload) {
-    return this.organizationsService.getMembers(currentUser);
+  @ApiOperation({
+    summary: '현재 조직 멤버 목록 조회',
+    description:
+      '`q`: 표시 이름 또는 이메일 검색. `page`·`limit` 페이지네이션(기본 1페이지, 20건).',
+  })
+  getMembers(
+    @CurrentUser() currentUser: CurrentUserPayload,
+    @Query() query: OrganizationMembersQueryDto,
+  ) {
+    return this.organizationsService.getMembers(currentUser, query);
   }
 
   @Patch('members/:memberId/role')

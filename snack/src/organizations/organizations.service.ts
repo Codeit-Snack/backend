@@ -4,12 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrgRole, OrgType } from '@prisma/client';
+import { OrgRole, OrgType, Prisma } from '@prisma/client';
 import { PrismaService } from '@/database/prisma.service';
 import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
 import { CreateOrganizationDto } from '@/organizations/dto/create-organization.dto';
 import { UpdateOrganizationDto } from '@/organizations/dto/update-organization.dto';
 import { UpdateOrganizationMemberRoleDto } from '@/organizations/dto/update-organization-member-role.dto';
+import { OrganizationMembersQueryDto } from '@/organizations/dto/organization-members-query.dto';
 
 @Injectable()
 export class OrganizationsService {
@@ -171,24 +172,54 @@ export class OrganizationsService {
     };
   }
 
-  // 현재 조직 멤버 목록 조회
-  async getMembers(currentUser: CurrentUserPayload) {
-    const members = await this.prisma.organizationMember.findMany({
-      where: {
-        organizationId: BigInt(currentUser.organizationId),
-        isActive: true,
-      },
-      include: {
-        user: {
-          include: {
-            profile: true,
+  // 현재 조직 멤버 목록 조회 (검색·페이지네이션)
+  async getMembers(
+    currentUser: CurrentUserPayload,
+    query: OrganizationMembersQueryDto = {},
+  ) {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 20, 100);
+    const skip = (page - 1) * limit;
+
+    const q = query.q?.trim();
+    const userWhere: Prisma.UserWhereInput | undefined =
+      q && q.length > 0
+        ? {
+            OR: [
+              { email: { contains: q } },
+              {
+                profile: {
+                  is: { displayName: { contains: q } },
+                },
+              },
+            ],
+          }
+        : undefined;
+
+    const where: Prisma.OrganizationMemberWhereInput = {
+      organizationId: BigInt(currentUser.organizationId),
+      isActive: true,
+      ...(userWhere != null && { user: userWhere }),
+    };
+
+    const [members, total] = await Promise.all([
+      this.prisma.organizationMember.findMany({
+        where,
+        include: {
+          user: {
+            include: {
+              profile: true,
+            },
           },
         },
-      },
-      orderBy: {
-        id: 'asc',
-      },
-    });
+        orderBy: {
+          id: 'asc',
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.organizationMember.count({ where }),
+    ]);
 
     return {
       message: '조직 멤버 목록 조회에 성공했습니다.',
@@ -200,6 +231,10 @@ export class OrganizationsService {
         role: member.role,
         joinedAt: member.joinedAt,
       })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
     };
   }
 

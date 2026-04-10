@@ -34,7 +34,7 @@ export class BudgetReservationController {
   @ApiOperation({
     summary: '예산 예약 생성 (판매자 주문당 1건)',
     description: [
-      '**권한:** ADMIN · SUPER_ADMIN',
+      '**권한:** SUPER_ADMIN',
       '',
       '**개념:** `budget_periods`는 “월 전체 상한”이고, `budget_reservations`는 특정 **판매자 주문(PO)** 에 묶어 “이만큼은 쓸 예정”이라고 **잠가 두는** 행입니다.',
       '월별 예산 upsert와 **별도 insert**이며, 한 PO당 ACTIVE 예약은 1건입니다.',
@@ -46,7 +46,7 @@ export class BudgetReservationController {
     ].join('\n'),
   })
   @ApiResponse({ status: 201, description: '생성됨 (래퍼 `{ success, data }`)' })
-  @ApiResponse({ status: 403, description: '비관리자' })
+  @ApiResponse({ status: 403, description: 'SUPER_ADMIN 아님' })
   @ApiResponse({ status: 409, description: '가용 예산 초과 등' })
   create(
     @OrganizationId() organizationId: number,
@@ -60,10 +60,10 @@ export class BudgetReservationController {
   @ApiOperation({
     summary: '예산 예약 해제 (ACTIVE → RELEASED)',
     description:
-      '**권한:** ADMIN · SUPER_ADMIN. ACTIVE 예약만 해제 가능. 잠긴 금액이 월 잔액에 다시 반영됩니다.',
+      '**권한:** SUPER_ADMIN. ACTIVE 예약만 해제 가능. 잠긴 금액이 월 잔액에 다시 반영됩니다.',
   })
   @ApiResponse({ status: 200 })
-  @ApiResponse({ status: 403, description: '비관리자' })
+  @ApiResponse({ status: 403, description: 'SUPER_ADMIN 아님' })
   @ApiResponse({ status: 404, description: '예약 없음' })
   release(
     @OrganizationId() organizationId: number,

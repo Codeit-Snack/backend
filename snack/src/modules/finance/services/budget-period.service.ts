@@ -5,7 +5,7 @@ import type { JwtPayload } from '@/common/types/jwt-payload.type';
 import { AuditLogService } from '@/modules/audit/audit-log.service';
 import { AppException } from '@/common/exceptions/app.exception';
 import { ErrorCode } from '@/common/enums/error-code.enum';
-import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
+import { assertSuperAdmin } from '@/modules/finance/utils/assert-super-admin.util';
 import { UpsertBudgetPeriodDto } from '@/modules/finance/dto/upsert-budget-period.dto';
 import { UpdateMonthlyBudgetDefaultDto } from '@/modules/finance/dto/update-monthly-budget-default.dto';
 
@@ -91,9 +91,9 @@ export class BudgetPeriodService {
   }
 
   async getMonthlyBudgetDefault(organizationId: number, user: JwtPayload) {
-    assertOrgAdmin(
+    assertSuperAdmin(
       user,
-      '매달 시작 예산 기본값 조회는 관리자만 가능합니다.',
+      '매달 시작 예산 기본값 조회는 최고 관리자만 가능합니다.',
     );
     const org = await this.prisma.organization.findUnique({
       where: { id: BigInt(organizationId) },
@@ -112,9 +112,9 @@ export class BudgetPeriodService {
     user: JwtPayload,
     dto: UpdateMonthlyBudgetDefaultDto,
   ) {
-    assertOrgAdmin(
+    assertSuperAdmin(
       user,
-      '매달 시작 예산 기본값 수정은 관리자만 가능합니다.',
+      '매달 시작 예산 기본값 수정은 최고 관리자만 가능합니다.',
     );
     const orgId = BigInt(organizationId);
     const amount = new Prisma.Decimal(dto.defaultMonthlyBudget);
@@ -144,7 +144,7 @@ export class BudgetPeriodService {
     user: JwtPayload,
     dto: UpsertBudgetPeriodDto,
   ) {
-    assertOrgAdmin(user, '월별 예산 설정은 관리자만 가능합니다.');
+    assertSuperAdmin(user, '월별 예산 설정은 최고 관리자만 가능합니다.');
 
     const orgId = BigInt(organizationId);
     const amount = new Prisma.Decimal(dto.budgetAmount);

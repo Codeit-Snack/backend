@@ -12,12 +12,15 @@ import { AppException } from '@/common/exceptions/app.exception';
 import { ErrorCode } from '@/common/enums/error-code.enum';
 import { CreatePurchaseRequestDto } from '@/modules/purchase-request/dto/create-purchase-request.dto';
 import { PurchaseRequestListQueryDto } from '@/modules/purchase-request/dto/purchase-request-list-query.dto';
+import { PurchaseRequestListSort } from '@/modules/purchase-request/dto/purchase-request-list-sort.enum';
 import {
   PurchaseRequestDetailResponseDto,
   PurchaseRequestItemResponseDto,
   PurchaseRequestSummaryResponseDto,
 } from '@/modules/purchase-request/dto/purchase-request-response.dto';
 import { releaseActiveBudgetReservationsForPurchaseOrders } from '@/modules/finance/utils/release-budget-reservations.util';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { SellerOrderService } from '@/modules/seller-order/services/seller-order.service';
 
 type RequestWithItems = PurchaseRequest & {
   purchase_request_items: Array<{
@@ -44,6 +47,7 @@ export class PurchaseRequestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly sellerOrderService: SellerOrderService,
   ) {}
 
   private isBuyerOrgAdmin(role: OrgRole): boolean {
@@ -105,7 +109,18 @@ export class PurchaseRequestService {
     buyerOrganizationId: number,
     requesterUserId: number,
     dto: CreatePurchaseRequestDto,
+    currentUser: JwtPayload,
   ): Promise<PurchaseRequestDetailResponseDto> {
+    if (
+      dto.instantCheckout === true &&
+      !this.isBuyerOrgAdmin(currentUser.role)
+    ) {
+      throw new AppException(
+        ErrorCode.FORBIDDEN,
+        '즉시 구매는 관리자만 요청할 수 있습니다.',
+      );
+    }
+
     return this.prisma
       .$transaction(async (tx) => {
         const cart = await tx.cart.findUnique({
@@ -217,8 +232,28 @@ export class PurchaseRequestService {
           targetType: 'purchase_request',
           targetId: BigInt(detail.id),
           message: null,
-          metadata: { itemCount: detail.items.length },
+          metadata: {
+            itemCount: detail.items.length,
+            instantCheckout: dto.instantCheckout === true,
+          },
         });
+
+        if (dto.instantCheckout === true) {
+          await this.sellerOrderService.instantCheckoutSelfSellerOrders(
+            buyerOrganizationId,
+            currentUser,
+            detail.id,
+            dto.instantShippingFee ?? null,
+          );
+          const refreshed = await this.findOne(
+            buyerOrganizationId,
+            requesterUserId,
+            detail.id,
+            currentUser.role,
+          );
+          return refreshed ?? detail;
+        }
+
         return detail;
       });
   }
@@ -247,10 +282,25 @@ export class PurchaseRequestService {
       ...(query.status != null && { status: query.status }),
     };
 
+    const sort = query.sort ?? PurchaseRequestListSort.RequestedAtDesc;
+    let orderBy: Prisma.PurchaseRequestOrderByWithRelationInput[];
+    switch (sort) {
+      case PurchaseRequestListSort.TotalAmountAsc:
+        orderBy = [{ totalAmount: 'asc' }, { id: 'asc' }];
+        break;
+      case PurchaseRequestListSort.TotalAmountDesc:
+        orderBy = [{ totalAmount: 'desc' }, { id: 'desc' }];
+        break;
+      case PurchaseRequestListSort.RequestedAtDesc:
+      default:
+        orderBy = [{ requestedAt: 'desc' }, { id: 'desc' }];
+        break;
+    }
+
     const [rows, total] = await Promise.all([
       this.prisma.purchaseRequest.findMany({
         where,
-        orderBy: { requestedAt: 'desc' },
+        orderBy,
         skip,
         take: limit,
         include: {

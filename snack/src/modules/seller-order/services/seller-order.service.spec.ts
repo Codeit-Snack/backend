@@ -7,6 +7,8 @@ import {
 import { SellerOrderService } from './seller-order.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditLogService } from '../../../modules/audit/audit-log.service';
+import { BudgetPeriodService } from '../../../modules/finance/services/budget-period.service';
+import { ExpenseService } from '../../../modules/finance/services/expense.service';
 import { ErrorCode } from '../../../common/enums/error-code.enum';
 
 describe('SellerOrderService', () => {
@@ -47,6 +49,15 @@ describe('SellerOrderService', () => {
         SellerOrderService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditLogService, useValue: auditLog },
+        {
+          provide: BudgetPeriodService,
+          useValue: {
+            computeRemainingFunds: jest.fn().mockResolvedValue({
+              remaining: new Prisma.Decimal('999999999'),
+            }),
+          },
+        },
+        { provide: ExpenseService, useValue: { create: jest.fn() } },
       ],
     }).compile();
 

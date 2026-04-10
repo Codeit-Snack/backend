@@ -1,11 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import {
   Prisma,
   PurchaseRequestStatus,
   purchase_order_decisions_decision,
+  purchase_orders_platform,
   purchase_orders_status,
 } from '@prisma/client';
 import { PrismaService } from '@/database/prisma.service';
+import type { JwtPayload } from '@/common/types/jwt-payload.type';
+import { BudgetPeriodService } from '@/modules/finance/services/budget-period.service';
+import { ExpenseService } from '@/modules/finance/services/expense.service';
+import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
 import { AuditLogService } from '@/modules/audit/audit-log.service';
 import { AppException } from '@/common/exceptions/app.exception';
 import { ErrorCode } from '@/common/enums/error-code.enum';
@@ -21,6 +27,8 @@ export class SellerOrderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly budgetPeriod: BudgetPeriodService,
+    private readonly expenseService: ExpenseService,
   ) {}
 
   private decStr(v: Prisma.Decimal): string {
@@ -615,5 +623,105 @@ export class SellerOrderService {
     });
 
     return this.findOne(sellerOrganizationId, orderId);
+  }
+
+  /**
+   * 구매자 조직 = 판매자 조직인 주문만: 승인 → 구매 완료 → 지출 등록까지 연속 처리.
+   * 예산은 UTC 현재 월 `computeRemainingFunds` 기준으로 **전체 합산** 선검증합니다.
+   */
+  async instantCheckoutSelfSellerOrders(
+    buyerOrganizationId: number,
+    user: JwtPayload,
+    purchaseRequestId: number,
+    instantShippingFee?: string | null,
+  ): Promise<void> {
+    assertOrgAdmin(user, '즉시 구매는 관리자만 가능합니다.');
+
+    const buyerId = BigInt(buyerOrganizationId);
+    const prId = BigInt(purchaseRequestId);
+
+    const pos = await this.prisma.purchase_orders.findMany({
+      where: {
+        purchase_request_id: prId,
+        buyer_organization_id: buyerId,
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    if (pos.length === 0) {
+      throw new AppException(
+        ErrorCode.RESOURCE_NOT_FOUND,
+        '구매 요청에 연결된 판매자 주문이 없습니다.',
+      );
+    }
+
+    for (const po of pos) {
+      if (po.seller_organization_id !== buyerId) {
+        throw new AppException(
+          ErrorCode.BAD_REQUEST,
+          '다른 조직이 판매하는 상품이 포함되어 즉시 구매할 수 없습니다.',
+        );
+      }
+    }
+
+    const shipStr =
+      instantShippingFee != null && String(instantShippingFee).trim() !== ''
+        ? String(instantShippingFee).trim()
+        : '0';
+    const shipDec = new Prisma.Decimal(shipStr);
+
+    let totalNeed = new Prisma.Decimal(0);
+    for (const po of pos) {
+      totalNeed = totalNeed.add(po.items_amount).add(shipDec);
+    }
+
+    const now = new Date();
+    const funds = await this.budgetPeriod.computeRemainingFunds(
+      buyerOrganizationId,
+      now.getUTCFullYear(),
+      now.getUTCMonth() + 1,
+    );
+    if (funds.remaining.lt(totalNeed)) {
+      throw new AppException(
+        ErrorCode.CONFLICT,
+        '가용 예산이 부족하여 즉시 구매할 수 없습니다.',
+      );
+    }
+
+    const userIdNum = Number(user.sub);
+
+    for (const po of pos) {
+      await this.approve(buyerOrganizationId, userIdNum, Number(po.id), {
+        decisionMessage: '즉시 구매 자동 승인',
+        shippingFee: shipStr,
+      });
+
+      const extNo = `I${purchaseRequestId}-${Number(po.id)}-${randomBytes(6).toString('hex')}`.slice(
+        0,
+        100,
+      );
+
+      await this.recordPurchase(
+        buyerOrganizationId,
+        userIdNum,
+        Number(po.id),
+        {
+          platform: purchase_orders_platform.OTHER,
+          externalOrderNo: extNo,
+          note: '즉시 구매',
+        },
+      );
+
+      const poFresh = await this.prisma.purchase_orders.findUniqueOrThrow({
+        where: { id: po.id },
+      });
+
+      await this.expenseService.create(buyerOrganizationId, user, {
+        purchaseOrderId: Number(po.id),
+        itemsAmount: Number(poFresh.items_amount.toString()),
+        shippingAmount: Number(poFresh.shipping_fee.toString()),
+        note: '즉시 구매',
+      });
+    }
   }
 }

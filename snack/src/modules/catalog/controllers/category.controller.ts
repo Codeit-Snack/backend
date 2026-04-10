@@ -26,6 +26,7 @@ import { CreateCategoryDto } from '@/modules/catalog/dto/create-category.dto';
 import { UpdateCategoryDto } from '@/modules/catalog/dto/update-category.dto';
 import { CategoryListQueryDto } from '@/modules/catalog/dto/category-list-query.dto';
 import { CategoryResponseDto } from '@/modules/catalog/dto/category-response.dto';
+import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
 
 @ApiTags('Categories')
 @Controller('categories')
@@ -35,7 +36,11 @@ export class CategoryController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: '카테고리 등록 (조직 ADMIN 이상)' })
+  @ApiOperation({
+    summary: '카테고리 등록',
+    description:
+      '**권한:** ADMIN · SUPER_ADMIN. 현재 JWT 조직 범위에 카테고리가 생성됩니다.',
+  })
   @ApiResponse({
     status: 201,
     description: '등록됨',
@@ -43,28 +48,49 @@ export class CategoryController {
   })
   @ApiResponse({ status: 400, description: '검증 실패' })
   @ApiResponse({ status: 404, description: '부모 카테고리 없음' })
-  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateCategoryDto) {
+  create(
+    @CurrentUser() user: JwtPayload,
+    @OrganizationId() organizationId: number,
+    @Body() dto: CreateCategoryDto,
+  ) {
     assertOrgAdmin(user, '카테고리 등록은 관리자만 가능합니다.');
-    return this.categoryService.create(dto);
+    return this.categoryService.create(dto, organizationId);
   }
 
   @Get()
-  @ApiOperation({ summary: '카테고리 목록 조회 (parentId 필터 지원)' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: '카테고리 목록 조회',
+    description:
+      'JWT `organizationId` 범위의 카테고리만. `parentId` 쿼리로 상·하위 필터.',
+  })
   @ApiResponse({
     status: 200,
     description: '목록',
     type: [CategoryResponseDto],
   })
-  findAll(@Query() query: CategoryListQueryDto) {
-    return this.categoryService.findAll(query);
+  findAll(
+    @OrganizationId() organizationId: number,
+    @Query() query: CategoryListQueryDto,
+  ) {
+    return this.categoryService.findAll(query, organizationId);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: '카테고리 단건 조회' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: '카테고리 단건 조회',
+    description: '동일 조직 소속 카테고리만 조회됩니다.',
+  })
   @ApiResponse({ status: 200, description: '단건', type: CategoryResponseDto })
   @ApiResponse({ status: 404, description: '없음' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const one = await this.categoryService.findOne(id);
+  async findOne(
+    @OrganizationId() organizationId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const one = await this.categoryService.findOne(id, organizationId);
     if (!one) {
       throw new NotFoundException('카테고리를 찾을 수 없습니다.');
     }
@@ -83,11 +109,12 @@ export class CategoryController {
   @ApiResponse({ status: 404, description: '카테고리 없음' })
   update(
     @CurrentUser() user: JwtPayload,
+    @OrganizationId() organizationId: number,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCategoryDto,
   ) {
     assertOrgAdmin(user, '카테고리 수정은 관리자만 가능합니다.');
-    return this.categoryService.update(id, dto);
+    return this.categoryService.update(id, dto, organizationId);
   }
 
   @Delete(':id')
@@ -104,9 +131,10 @@ export class CategoryController {
   })
   async remove(
     @CurrentUser() user: JwtPayload,
+    @OrganizationId() organizationId: number,
     @Param('id', ParseIntPipe) id: number,
   ) {
     assertOrgAdmin(user, '카테고리 삭제는 관리자만 가능합니다.');
-    await this.categoryService.remove(id);
+    await this.categoryService.remove(id, organizationId);
   }
 }

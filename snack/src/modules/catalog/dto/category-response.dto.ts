@@ -4,6 +4,9 @@ export class CategoryResponseDto {
   @ApiProperty({ example: 1 })
   id!: number;
 
+  @ApiProperty({ description: '소속 조직 ID', example: 1 })
+  organizationId!: number;
+
   @ApiPropertyOptional({ nullable: true, example: null })
   parentId!: number | null;
 

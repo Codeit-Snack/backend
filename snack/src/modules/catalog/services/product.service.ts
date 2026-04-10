@@ -6,7 +6,38 @@ import { ErrorCode } from '@/common/enums/error-code.enum';
 import { CreateProductDto } from '@/modules/catalog/dto/create-product.dto';
 import { UpdateProductDto } from '@/modules/catalog/dto/update-product.dto';
 import { ProductListQueryDto } from '@/modules/catalog/dto/product-list-query.dto';
+import { ProductListSort } from '@/modules/catalog/dto/product-list-sort.enum';
 import { ProductResponseDto } from '@/modules/catalog/dto/product-response.dto';
+
+/** @internal 단위 테스트용 — DB 없이 하위 카테고리 ID 집합 계산 */
+export function collectCategorySubtreeIds(
+  rows: { id: bigint; parentId: bigint | null }[],
+  rootId: bigint,
+): bigint[] | null {
+  const rootExists = rows.some((c) => c.id === rootId);
+  if (!rootExists) {
+    return null;
+  }
+  const byParent = new Map<string, bigint[]>();
+  for (const c of rows) {
+    const key = c.parentId == null ? 'root:null' : c.parentId.toString();
+    if (!byParent.has(key)) {
+      byParent.set(key, []);
+    }
+    byParent.get(key)!.push(c.id);
+  }
+  const out: bigint[] = [];
+  const stack: bigint[] = [rootId];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    out.push(id);
+    const kids = byParent.get(id.toString()) ?? [];
+    for (const k of kids) {
+      stack.push(k);
+    }
+  }
+  return out;
+}
 
 type ProductRow = {
   id: bigint;
@@ -23,6 +54,7 @@ type ProductRow = {
   updatedAt: Date;
   category?: {
     id: bigint;
+    organizationId: bigint;
     parentId: bigint | null;
     name: string;
     sortOrder: number;
@@ -55,6 +87,7 @@ export class ProductService {
     if (row.category) {
       dto.category = {
         id: Number(row.category.id),
+        organizationId: Number(row.category.organizationId),
         parentId:
           row.category.parentId != null ? Number(row.category.parentId) : null,
         name: row.category.name,
@@ -72,8 +105,11 @@ export class ProductService {
     userId: number,
   ): Promise<ProductResponseDto> {
     if (dto.categoryId != null) {
-      const cat = await this.prisma.category.findUnique({
-        where: { id: BigInt(dto.categoryId) },
+      const cat = await this.prisma.category.findFirst({
+        where: {
+          id: BigInt(dto.categoryId),
+          organizationId: BigInt(organizationId),
+        },
       });
       if (!cat) {
         throw new AppException(
@@ -98,25 +134,78 @@ export class ProductService {
     return this.toProductResponse(created);
   }
 
-  private readonly listSelect = {
+  private readonly categorySelect = {
     id: true,
     organizationId: true,
-    categoryId: true,
+    parentId: true,
     name: true,
-    price: true,
-    imageKey: true,
-    productUrl: true,
-    purchaseCountCache: true,
-    createdByUserId: true,
+    sortOrder: true,
     isActive: true,
     createdAt: true,
-    updatedAt: true,
   } as const;
 
-  /** list 조회: select 최소 필드, category 미포함 */
+  private listOrderBy(
+    sort?: ProductListSort,
+  ): Prisma.ProductOrderByWithRelationInput[] {
+    const s = sort ?? ProductListSort.CreatedAtDesc;
+    switch (s) {
+      case ProductListSort.PriceAsc:
+        return [{ price: 'asc' }, { id: 'asc' }];
+      case ProductListSort.PriceDesc:
+        return [{ price: 'desc' }, { id: 'desc' }];
+      case ProductListSort.PurchaseCountDesc:
+        return [{ purchaseCountCache: 'desc' }, { id: 'desc' }];
+      case ProductListSort.CreatedAtDesc:
+      default:
+        return [{ createdAt: 'desc' }, { id: 'desc' }];
+    }
+  }
+
+  private async resolveCategoryFilter(
+    query: ProductListQueryDto,
+    organizationId: number,
+  ): Promise<Prisma.ProductWhereInput['categoryId']> {
+    if (query.parentCategoryId == null) {
+      if (query.categoryId == null) {
+        return undefined;
+      }
+      return BigInt(query.categoryId);
+    }
+
+    const allCats = await this.prisma.category.findMany({
+      where: { organizationId: BigInt(organizationId) },
+      select: { id: true, parentId: true },
+    });
+    const subtree = collectCategorySubtreeIds(
+      allCats,
+      BigInt(query.parentCategoryId),
+    );
+    if (subtree == null) {
+      throw new AppException(
+        ErrorCode.RESOURCE_NOT_FOUND,
+        '카테고리를 찾을 수 없습니다.',
+      );
+    }
+
+    if (query.categoryId != null) {
+      const leaf = BigInt(query.categoryId);
+      if (!subtree.some((id) => id === leaf)) {
+        throw new AppException(
+          ErrorCode.BAD_REQUEST,
+          'categoryId가 parentCategoryId 하위 트리에 속하지 않습니다.',
+        );
+      }
+      return leaf;
+    }
+
+    return { in: subtree };
+  }
+
+  /** 목록: category 포함, 정렬·mine·상위 카테고리 트리 필터 지원 */
   async findAll(
     organizationId: number,
     query: ProductListQueryDto,
+    currentUserId: number,
   ): Promise<{
     data: ProductResponseDto[];
     total: number;
@@ -131,17 +220,31 @@ export class ProductService {
     const where: Prisma.ProductWhereInput = {
       organizationId: BigInt(organizationId),
     };
-    if (query.categoryId != null) where.categoryId = BigInt(query.categoryId);
-    if (query.isActive !== undefined) where.isActive = query.isActive;
+
+    const catFilter = await this.resolveCategoryFilter(query, organizationId);
+    if (catFilter !== undefined) {
+      where.categoryId = catFilter;
+    }
+
+    if (query.isActive !== undefined) {
+      where.isActive = query.isActive;
+    }
     if (query.keyword?.trim()) {
       where.name = { contains: query.keyword.trim() };
     }
+    if (query.mine === true) {
+      where.createdByUserId = BigInt(currentUserId);
+    }
+
+    const orderBy = this.listOrderBy(query.sort);
 
     const [list, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        select: this.listSelect,
-        orderBy: { createdAt: 'desc' },
+        include: {
+          category: { select: this.categorySelect },
+        },
+        orderBy,
         skip,
         take: limit,
       }),
@@ -149,7 +252,7 @@ export class ProductService {
     ]);
 
     return {
-      data: list.map((row) => this.toProductResponse(row)),
+      data: list.map((row) => this.toProductResponse(row as ProductRow)),
       total,
       page,
       limit,
@@ -168,16 +271,7 @@ export class ProductService {
         organizationId: BigInt(organizationId),
       },
       include: {
-        category: {
-          select: {
-            id: true,
-            parentId: true,
-            name: true,
-            sortOrder: true,
-            isActive: true,
-            createdAt: true,
-          },
-        },
+        category: { select: this.categorySelect },
       },
     });
     return row ? this.toProductResponse(row) : null;
@@ -202,8 +296,11 @@ export class ProductService {
     }
 
     if (dto.categoryId !== undefined && dto.categoryId != null) {
-      const cat = await this.prisma.category.findUnique({
-        where: { id: BigInt(dto.categoryId) },
+      const cat = await this.prisma.category.findFirst({
+        where: {
+          id: BigInt(dto.categoryId),
+          organizationId: BigInt(organizationId),
+        },
       });
       if (!cat) {
         throw new AppException(
@@ -231,16 +328,7 @@ export class ProductService {
       where: { id: BigInt(productId) },
       data,
       include: {
-        category: {
-          select: {
-            id: true,
-            parentId: true,
-            name: true,
-            sortOrder: true,
-            isActive: true,
-            createdAt: true,
-          },
-        },
+        category: { select: this.categorySelect },
       },
     });
     return this.toProductResponse(updated);
