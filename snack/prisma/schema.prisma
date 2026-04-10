@@ -9,7 +9,6 @@ datasource db {
 model Organization {
   id                                                                    BigInt                   @id @default(autoincrement())
   name                                                                  String                   @db.VarChar(200)
-  orgType                                                               OrgType                  @default(BUSINESS) @map("org_type")
   businessNumber                                                        String?                  @map("business_number") @db.VarChar(30)
   defaultMonthlyBudget                                                  Decimal                  @default(0.00) @map("default_monthly_budget") @db.Decimal(14, 2)
   createdAt                                                             DateTime                 @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
@@ -29,7 +28,6 @@ model Organization {
   purchase_request_items                                                purchase_request_items[]
   purchase_requests                                                     PurchaseRequest[]
 
-  @@index([orgType, name], map: "organizations_index_0")
   @@index([businessNumber], map: "organizations_index_1")
   @@index([name], map: "organizations_index_2")
   @@map("organizations")
@@ -430,11 +428,6 @@ enum OrgRole {
   MEMBER
   ADMIN
   SUPER_ADMIN
-}
-
-enum OrgType {
-  PERSONAL
-  BUSINESS
 }
 
 enum InvitationStatus {

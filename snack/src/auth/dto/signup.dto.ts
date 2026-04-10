@@ -1,10 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OrgType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
-  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
@@ -35,10 +33,6 @@ export class SignUpDto {
   @MinLength(1)
   @MaxLength(200)
   organizationName: string;
-
-  @ApiProperty({ enum: OrgType, example: OrgType.BUSINESS })
-  @IsEnum(OrgType)
-  orgType: OrgType;
 
   @ApiPropertyOptional({ example: '1234567890' })
   @IsOptional()

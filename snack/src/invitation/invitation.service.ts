@@ -666,7 +666,7 @@ export class InvitationService {
         organization: {
           id: organizationId,
           name: invitation.organization.name,
-          orgType: invitation.organization.orgType,
+          businessNumber: invitation.organization.businessNumber,
         },
         membership: {
           role: roleToGrant,
