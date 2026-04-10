@@ -61,10 +61,7 @@ jobs:
   deploy-ec2:
     name: Deploy to AWS EC2
     needs: build
-    if: >
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      secrets.EC2_HOST
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       EC2_REPO_ROOT: ${{ vars.EC2_REPO_ROOT }}
