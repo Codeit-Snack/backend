@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { OrgType } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsOptional,
@@ -43,4 +45,22 @@ export class SignUpDto {
   @IsString()
   @MaxLength(30)
   businessNumber?: string;
+
+  @ApiPropertyOptional({
+    description:
+      '`true`이면 가입 직후 세션을 만들고 `login`과 동일한 `accessToken`·`refreshToken`을 함께 반환합니다.',
+    example: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === true || value === 'true' || value === 1 || value === '1') {
+      return true;
+    }
+    if (value === false || value === 'false' || value === 0 || value === '0') {
+      return false;
+    }
+    return value;
+  })
+  @IsBoolean()
+  issueAuthTokens?: boolean;
 }

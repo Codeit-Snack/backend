@@ -43,7 +43,7 @@ export class ProductResponseDto {
   updatedAt!: string;
 
   @ApiPropertyOptional({
-    description: '상세 조회 시에만 포함',
+    description: '목록·상세 모두에서 채워질 수 있음 (목록은 `include category` 시)',
     type: () => CategoryResponseDto,
     nullable: true,
   })

@@ -22,6 +22,7 @@ model Organization {
   expenses                                                              expenses[]
   invitations                                                           Invitation[]
   members                                                               OrganizationMember[]
+  categories                                                            Category[]
   products                                                              Product[]
   purchase_orders_purchase_orders_buyer_organization_idToorganizations  purchase_orders[]        @relation("purchase_orders_buyer_organization_idToorganizations")
   purchase_orders_purchase_orders_seller_organization_idToorganizations purchase_orders[]        @relation("purchase_orders_seller_organization_idToorganizations")
@@ -118,17 +119,20 @@ model Invitation {
 }
 
 model Category {
-  id        BigInt     @id @default(autoincrement())
-  parentId  BigInt?    @map("parent_id")
-  name      String     @db.VarChar(120)
-  sortOrder Int        @default(0) @map("sort_order")
-  isActive  Boolean    @default(true) @map("is_active")
-  createdAt DateTime   @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
-  parent    Category?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "categories_ibfk_1")
-  children  Category[] @relation("CategoryParent")
-  products  Product[]
+  id             BigInt       @id @default(autoincrement())
+  organizationId BigInt       @map("organization_id")
+  parentId       BigInt?      @map("parent_id")
+  name           String       @db.VarChar(120)
+  sortOrder      Int          @default(0) @map("sort_order")
+  isActive       Boolean      @default(true) @map("is_active")
+  createdAt      DateTime     @default(dbgenerated("(now())")) @map("created_at") @db.DateTime(0)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "categories_organization_id_fkey")
+  parent         Category?    @relation("CategoryParent", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "categories_ibfk_1")
+  children       Category[]   @relation("CategoryParent")
+  products       Product[]
 
-  @@unique([parentId, name], map: "categories_index_19")
+  @@unique([organizationId, parentId, name], map: "categories_org_parent_name_key")
+  @@index([organizationId], map: "categories_organization_id_idx")
   @@index([parentId], map: "categories_index_20")
   @@index([name], map: "categories_index_21")
   @@map("categories")

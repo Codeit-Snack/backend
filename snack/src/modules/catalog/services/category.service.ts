@@ -14,6 +14,7 @@ export class CategoryService {
   /** list 조회용: select만, relation 미포함 */
   private toCategoryResponse(row: {
     id: bigint;
+    organizationId: bigint;
     parentId: bigint | null;
     name: string;
     sortOrder: number;
@@ -22,6 +23,7 @@ export class CategoryService {
   }): CategoryResponseDto {
     return {
       id: Number(row.id),
+      organizationId: Number(row.organizationId),
       parentId: row.parentId != null ? Number(row.parentId) : null,
       name: row.name,
       sortOrder: row.sortOrder,
@@ -30,10 +32,14 @@ export class CategoryService {
     };
   }
 
-  async create(dto: CreateCategoryDto): Promise<CategoryResponseDto> {
+  async create(
+    dto: CreateCategoryDto,
+    organizationId: number,
+  ): Promise<CategoryResponseDto> {
+    const orgId = BigInt(organizationId);
     if (dto.parentId != null) {
-      const parent = await this.prisma.category.findUnique({
-        where: { id: BigInt(dto.parentId) },
+      const parent = await this.prisma.category.findFirst({
+        where: { id: BigInt(dto.parentId), organizationId: orgId },
       });
       if (!parent) {
         throw new AppException(
@@ -45,6 +51,7 @@ export class CategoryService {
 
     const created = await this.prisma.category.create({
       data: {
+        organizationId: orgId,
         parentId: dto.parentId ?? undefined,
         name: dto.name,
         sortOrder: dto.sortOrder ?? 0,
@@ -54,20 +61,27 @@ export class CategoryService {
     return this.toCategoryResponse(created);
   }
 
-  async findAll(query: CategoryListQueryDto): Promise<CategoryResponseDto[]> {
-    const where: { parentId?: bigint | null } = {};
+  async findAll(
+    query: CategoryListQueryDto,
+    organizationId: number,
+  ): Promise<CategoryResponseDto[]> {
+    const orgId = BigInt(organizationId);
+    const where: {
+      organizationId: bigint;
+      parentId?: bigint | null;
+    } = { organizationId: orgId };
     if (query.parentId !== undefined && query.parentId !== null) {
       where.parentId = BigInt(query.parentId);
     } else if (query.parentId === null) {
       where.parentId = null;
     }
-    // parentId 미전달 시: 전체 조회
 
     const list = await this.prisma.category.findMany({
       where,
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: {
         id: true,
+        organizationId: true,
         parentId: true,
         name: true,
         sortOrder: true,
@@ -78,11 +92,15 @@ export class CategoryService {
     return list.map((row) => this.toCategoryResponse(row));
   }
 
-  async findOne(id: number): Promise<CategoryResponseDto | null> {
-    const row = await this.prisma.category.findUnique({
-      where: { id: BigInt(id) },
+  async findOne(
+    id: number,
+    organizationId: number,
+  ): Promise<CategoryResponseDto | null> {
+    const row = await this.prisma.category.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
       select: {
         id: true,
+        organizationId: true,
         parentId: true,
         name: true,
         sortOrder: true,
@@ -96,9 +114,11 @@ export class CategoryService {
   async update(
     id: number,
     dto: UpdateCategoryDto,
+    organizationId: number,
   ): Promise<CategoryResponseDto> {
-    const existing = await this.prisma.category.findUnique({
-      where: { id: BigInt(id) },
+    const orgId = BigInt(organizationId);
+    const existing = await this.prisma.category.findFirst({
+      where: { id: BigInt(id), organizationId: orgId },
     });
     if (!existing) {
       throw new AppException(
@@ -108,8 +128,8 @@ export class CategoryService {
     }
 
     if (dto.parentId !== undefined && dto.parentId != null) {
-      const parent = await this.prisma.category.findUnique({
-        where: { id: BigInt(dto.parentId) },
+      const parent = await this.prisma.category.findFirst({
+        where: { id: BigInt(dto.parentId), organizationId: orgId },
       });
       if (!parent) {
         throw new AppException(
@@ -131,9 +151,9 @@ export class CategoryService {
     return this.toCategoryResponse(updated);
   }
 
-  async remove(id: number): Promise<void> {
-    const category = await this.prisma.category.findUnique({
-      where: { id: BigInt(id) },
+  async remove(id: number, organizationId: number): Promise<void> {
+    const category = await this.prisma.category.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
       include: {
         children: { take: 1 },
         products: { take: 1 },

@@ -24,11 +24,15 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('signup')
-  @ApiOperation({ summary: '회원가입' })
+  @ApiOperation({
+    summary: '회원가입',
+    description:
+      '`issueAuthTokens: true`이면 응답 `data.tokens`에 access·refresh 토큰 포함(로그인과 동일 세션 규칙).',
+  })
   @ApiResponse({
     status: 201,
     description:
-      '`{ success: true, data: { user, organization, membership, tokens } }`',
+      '`{ success: true, data: { user, organization, membership, tokens? } }`',
   })
   signUp(@Body() dto: SignUpDto) {
     return this.authService.signUp(dto);

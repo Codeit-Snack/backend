@@ -25,7 +25,7 @@ export class BudgetPeriodController {
   @ApiOperation({
     summary: '월별 예산 설정(upsert)',
     description: [
-      '**권한:** ADMIN · SUPER_ADMIN',
+      '**권한:** SUPER_ADMIN',
       '',
       '선택한 `year`·`month`에 해당하는 `budget_periods` 행을 만들거나 `budgetAmount`로 덮어씁니다.',
       '이 호출로 저장된 행은 `created_by_user_id`가 채워지며, 이후 `hasPeriodConfigured`가 true로 취급됩니다.',
@@ -51,7 +51,7 @@ export class BudgetPeriodController {
       },
     },
   })
-  @ApiResponse({ status: 403, description: 'MEMBER 등 비관리자' })
+  @ApiResponse({ status: 403, description: 'SUPER_ADMIN 아님' })
   upsert(
     @OrganizationId() organizationId: number,
     @CurrentUser() user: JwtPayload,
@@ -75,8 +75,8 @@ export class BudgetPeriodController {
       '**자동 생성:** 해당 연·월에 `budget_periods` 행이 없으면, 조직 `default_monthly_budget`으로 1행을 만든 뒤 집계합니다.',
       '',
       '**hasPeriodConfigured**',
-      '- `true`: 그 달 행이 관리자 `POST /budget/periods`로 한 번이라도 확정됨(`created_by_user_id` 존재)',
-      '- `false`: 자동 생성만 된 상태(기본값만 반영, 관리자가 “수정하기”로 확정 전)',
+      '- `true`: 그 달 행이 최고 관리자 `POST /budget/periods`로 한 번이라도 확정됨(`created_by_user_id` 존재)',
+      '- `false`: 자동 생성만 된 상태(기본값만 반영, 최고 관리자가 “수정하기”로 확정 전)',
       '',
       '**참고:** 예산 예약 가능액 판단에도 동일한 잔액 로직(UTC 현재 월)이 쓰입니다.',
     ].join('\n'),
@@ -151,7 +151,7 @@ export class BudgetPeriodController {
       '',
       '해당 연·월에 `budget_periods` 행이 없으면 `organizations.default_monthly_budget` 금액으로 **1행을 생성**한 뒤 반환합니다(자동 생성 B).',
       '',
-      '`hasPeriodConfigured`: 관리자가 `POST /budget/periods`로 저장한 적이 있으면 true, 자동 생성 직후만이면 false.',
+      '`hasPeriodConfigured`: 최고 관리자가 `POST /budget/periods`로 저장한 적이 있으면 true, 자동 생성 직후만이면 false.',
     ].join('\n'),
   })
   @ApiResponse({
