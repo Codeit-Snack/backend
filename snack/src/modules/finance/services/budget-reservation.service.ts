@@ -9,7 +9,7 @@ import { AppException } from '@/common/exceptions/app.exception';
 import { ErrorCode } from '@/common/enums/error-code.enum';
 import type { JwtPayload } from '@/common/types/jwt-payload.type';
 import { AuditLogService } from '@/modules/audit/audit-log.service';
-import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
+import { assertSuperAdmin } from '@/modules/finance/utils/assert-super-admin.util';
 import { CreateBudgetReservationDto } from '@/modules/finance/dto/create-budget-reservation.dto';
 import { BudgetPeriodService } from '@/modules/finance/services/budget-period.service';
 
@@ -55,7 +55,7 @@ export class BudgetReservationService {
     user: JwtPayload,
     dto: CreateBudgetReservationDto,
   ) {
-    assertOrgAdmin(user, '예산 예약 생성은 관리자만 가능합니다.');
+    assertSuperAdmin(user, '예산 예약 생성은 최고 관리자만 가능합니다.');
 
     const po = await this.prisma.purchase_orders.findFirst({
       where: {
@@ -156,7 +156,7 @@ export class BudgetReservationService {
     user: JwtPayload,
     reservationId: number,
   ) {
-    assertOrgAdmin(user, '예산 예약 해제는 관리자만 가능합니다.');
+    assertSuperAdmin(user, '예산 예약 해제는 최고 관리자만 가능합니다.');
 
     const row = await this.prisma.budget_reservations.findFirst({
       where: {

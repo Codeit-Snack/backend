@@ -29,7 +29,13 @@ export class ExpenseController {
   }
 
   @Get()
-  @ApiOperation({ summary: '지출 목록' })
+  @ApiOperation({
+    summary: '지출 목록',
+    description: [
+      '**sort**: `expensedAt_desc`(기본), `amount_asc`, `amount_desc`.',
+      '각 행에 구매 요청 요청일·요청자(이메일/표시명)·상품명 미리보기(최대 5개)·판매자 주문 승인/주문일·지출 기록자 정보가 포함됩니다.',
+    ].join('\n'),
+  })
   list(
     @OrganizationId() organizationId: number,
     @Query() query: ExpenseListQueryDto,

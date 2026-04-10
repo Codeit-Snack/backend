@@ -33,6 +33,70 @@ export class AuthService {
     private readonly auditLog: AuditLogService,
   ) {}
 
+  /** 로그인·회원가입 직후 세션 생성 및 JWT 발급 */
+  private async issueFreshTokensForUser(params: {
+    userId: bigint;
+    email: string;
+    organizationId: bigint;
+    role: OrgRole;
+  }): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    sessionId: string;
+  }> {
+    const refreshExpiresIn = this.configService.getOrThrow<string>(
+      'JWT_REFRESH_EXPIRES_IN',
+    );
+    const refreshExpiresAt = this.getExpiryDate(refreshExpiresIn);
+
+    const session = await this.prisma.auth_sessions.create({
+      data: {
+        user_id: params.userId,
+        current_organization_id: params.organizationId,
+        refresh_token_hash: `login_pending_${randomBytes(24).toString('hex')}`,
+        expires_at: refreshExpiresAt,
+        status: auth_sessions_status.ACTIVE,
+      },
+    });
+
+    const sessionId = session.id.toString();
+
+    const accessPayload = {
+      sub: params.userId.toString(),
+      email: params.email,
+      organizationId: params.organizationId.toString(),
+      role: params.role,
+      sessionId,
+    };
+
+    const refreshPayload = {
+      sub: params.userId.toString(),
+      type: 'refresh' as const,
+      sessionId,
+    };
+
+    const accessToken = await this.signAccessToken(accessPayload);
+    const refreshToken = await this.signRefreshToken(refreshPayload);
+
+    const refreshTokenHash = await hashPassword(refreshToken, 10);
+
+    await this.prisma.auth_sessions.update({
+      where: { id: session.id },
+      data: {
+        refresh_token_hash: refreshTokenHash,
+      },
+    });
+
+    await this.prisma.user.update({
+      where: { id: params.userId },
+      data: {
+        lastLoginAt: new Date(),
+      },
+    });
+
+    return { accessToken, refreshToken, sessionId };
+  }
+
   async signUp(dto: SignUpDto) {
     const email = dto.email.trim().toLowerCase();
     const displayName = dto.displayName.trim();
@@ -98,7 +162,7 @@ export class AuthService {
       const membership = organization.members[0];
       const user = membership.user;
 
-      return {
+      const base = {
         message: '회원가입이 완료되었습니다.',
         user: {
           id: user.id.toString(),
@@ -116,6 +180,24 @@ export class AuthService {
           role: membership.role,
         },
       };
+
+      if (dto.issueAuthTokens === true) {
+        const tokens = await this.issueFreshTokensForUser({
+          userId: user.id,
+          email: user.email,
+          organizationId: organization.id,
+          role: membership.role,
+        });
+        return {
+          ...base,
+          tokens: {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+          },
+        };
+      }
+
+      return base;
     } catch (error) {
       console.error('signup error:', error);
 
@@ -174,54 +256,13 @@ export class AuthService {
       throw new UnauthorizedException('활성 조직 멤버십이 없습니다.');
     }
 
-    const refreshExpiresIn = this.configService.getOrThrow<string>(
-      'JWT_REFRESH_EXPIRES_IN',
-    );
-    const refreshExpiresAt = this.getExpiryDate(refreshExpiresIn);
-
-    // refresh_token_hash 는 UNIQUE — 빈 문자열이면 두 번째 로그인부터 P2002 로 500 발생
-    const session = await this.prisma.auth_sessions.create({
-      data: {
-        user_id: user.id,
-        current_organization_id: primaryMembership.organizationId,
-        refresh_token_hash: `login_pending_${randomBytes(24).toString('hex')}`,
-        expires_at: refreshExpiresAt,
-        status: auth_sessions_status.ACTIVE,
-      },
-    });
-
-    const accessPayload = {
-      sub: user.id.toString(),
-      email: user.email,
-      organizationId: primaryMembership.organizationId.toString(),
-      role: primaryMembership.role,
-      sessionId: session.id.toString(),
-    };
-
-    const refreshPayload = {
-      sub: user.id.toString(),
-      type: 'refresh' as const,
-      sessionId: session.id.toString(),
-    };
-
-    const accessToken = await this.signAccessToken(accessPayload);
-    const refreshToken = await this.signRefreshToken(refreshPayload);
-
-    const refreshTokenHash = await hashPassword(refreshToken, 10);
-
-    await this.prisma.auth_sessions.update({
-      where: { id: session.id },
-      data: {
-        refresh_token_hash: refreshTokenHash,
-      },
-    });
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLoginAt: new Date(),
-      },
-    });
+    const { accessToken, refreshToken, sessionId } =
+      await this.issueFreshTokensForUser({
+        userId: user.id,
+        email: user.email,
+        organizationId: primaryMembership.organizationId,
+        role: primaryMembership.role,
+      });
 
     let invitationAccepted = false;
     if (dto.invitationToken) {
@@ -231,7 +272,7 @@ export class AuthService {
           email: user.email,
           organizationId: primaryMembership.organizationId.toString(),
           role: primaryMembership.role,
-          sessionId: session.id.toString(),
+          sessionId,
         };
         await this.invitationService.accept(dto.invitationToken, currentUser);
         invitationAccepted = true;

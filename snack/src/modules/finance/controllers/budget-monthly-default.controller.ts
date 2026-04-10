@@ -23,7 +23,7 @@ export class BudgetMonthlyDefaultController {
   @ApiOperation({
     summary: '매달 시작 예산(조직 기본값) 조회',
     description: [
-      '**권한:** ADMIN · SUPER_ADMIN',
+      '**권한:** SUPER_ADMIN',
       '',
       '조직 테이블 `organizations.default_monthly_budget` 값을 반환합니다(기본 0).',
       '',
@@ -42,7 +42,7 @@ export class BudgetMonthlyDefaultController {
       },
     },
   })
-  @ApiResponse({ status: 403, description: 'MEMBER 등 비관리자' })
+  @ApiResponse({ status: 403, description: 'SUPER_ADMIN 아님' })
   getDefault(
     @OrganizationId() organizationId: number,
     @CurrentUser() user: JwtPayload,
@@ -54,7 +54,7 @@ export class BudgetMonthlyDefaultController {
   @ApiOperation({
     summary: '매달 시작 예산(조직 기본값) 수정',
     description: [
-      '**권한:** ADMIN · SUPER_ADMIN',
+      '**권한:** SUPER_ADMIN',
       '',
       '요청 본문의 `defaultMonthlyBudget`으로 조직 기본값을 갱신합니다.',
       '**이후** “행이 없는” 연·월을 처음 건드릴 때 자동 생성되는 금액에만 영향이 있습니다.',
@@ -71,7 +71,7 @@ export class BudgetMonthlyDefaultController {
       },
     },
   })
-  @ApiResponse({ status: 403, description: 'MEMBER 등 비관리자' })
+  @ApiResponse({ status: 403, description: 'SUPER_ADMIN 아님' })
   updateDefault(
     @OrganizationId() organizationId: number,
     @CurrentUser() user: JwtPayload,

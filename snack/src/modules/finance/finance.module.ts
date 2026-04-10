@@ -25,5 +25,6 @@ import { FinanceAuditQueryService } from '@/modules/finance/services/finance-aud
     ExpenseService,
     FinanceAuditQueryService,
   ],
+  exports: [BudgetPeriodService, BudgetReservationService, ExpenseService],
 })
 export class FinanceModule {}

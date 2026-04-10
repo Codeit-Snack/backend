@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import { ExpenseListSort } from '@/modules/finance/dto/expense-list-sort.enum';
 
 export class ExpenseListQueryDto {
   @ApiPropertyOptional({ minimum: 1, default: 1 })
@@ -27,4 +28,13 @@ export class ExpenseListQueryDto {
   @IsOptional()
   @IsISO8601()
   to?: string;
+
+  @ApiPropertyOptional({
+    enum: ExpenseListSort,
+    default: ExpenseListSort.ExpensedAtDesc,
+    description: '정렬: 지출일 내림차순(기본), 금액 오름/내림차순',
+  })
+  @IsOptional()
+  @IsEnum(ExpenseListSort)
+  sort?: ExpenseListSort;
 }

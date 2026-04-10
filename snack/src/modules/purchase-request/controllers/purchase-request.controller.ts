@@ -37,22 +37,28 @@ export class PurchaseRequestController {
   @Post()
   @ApiOperation({
     summary: '구매 요청 생성 (현재 장바구니 → 스냅샷, 이후 카트 비움)',
+    description:
+      '`instantCheckout`: 관리자 전용. 자체 판매 상품만 있을 때 승인·구매완료·지출까지 한 번에 처리합니다.',
   })
   @ApiResponse({
     status: 201,
     description: '생성됨',
     type: PurchaseRequestDetailResponseDto,
   })
-  @ApiResponse({ status: 400, description: '빈 장바구니 / 비활성 상품' })
+  @ApiResponse({ status: 400, description: '빈 장바구니 / 비활성 상품 / 즉시구매 불가 조합' })
+  @ApiResponse({ status: 403, description: '즉시 구매를 MEMBER가 요청' })
+  @ApiResponse({ status: 409, description: '즉시 구매 시 예산 부족' })
   create(
     @OrganizationId() buyerOrganizationId: number,
     @UserId() requesterUserId: number,
+    @CurrentUser() currentUser: CurrentUserPayload,
     @Body() dto: CreatePurchaseRequestDto,
   ) {
     return this.purchaseRequestService.createFromCart(
       buyerOrganizationId,
       requesterUserId,
       dto,
+      currentUser,
     );
   }
 
@@ -60,6 +66,8 @@ export class PurchaseRequestController {
   @ApiOperation({
     summary:
       '구매 요청 목록 (바이어 org). MEMBER는 본인이 요청한 건만, ADMIN/SUPER_ADMIN은 조직 전체',
+    description:
+      '**sort** 쿼리: `requestedAt_desc`(기본), `totalAmount_asc`, `totalAmount_desc`.',
   })
   @ApiResponse({ status: 200, description: '목록 + 페이지 메타' })
   findAll(
