@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,6 +25,8 @@ import { SignUpDto } from '@/auth/dto/signup.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
@@ -102,6 +105,16 @@ export class AuthService {
     const displayName = dto.displayName.trim();
     const organizationName = dto.organizationName.trim();
     const businessNumber = dto.businessNumber?.trim() ?? null;
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existingUser) {
+      throw new ConflictException(
+        '이미 가입된 이메일입니다. 로그인 또는 비밀번호 재설정을 이용해 주세요.',
+      );
+    }
 
     const bcryptRounds = Number(
       this.configService.get<string>('BCRYPT_ROUNDS', '12'),
@@ -184,19 +197,50 @@ export class AuthService {
 
       return base;
     } catch (error) {
-      console.error('signup error:', error);
-
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException('이미 사용 중인 이메일입니다.');
+      if (this.isDuplicateEmailError(error)) {
+        this.logger.warn(`Duplicate signup attempt detected for email: ${email}`);
+        throw new ConflictException(
+          '이미 가입된 이메일입니다. 로그인 또는 비밀번호 재설정을 이용해 주세요.',
+        );
       }
 
+      this.logger.error(
+        `signup failed for email: ${email}`,
+        error instanceof Error ? error.stack : String(error),
+      );
       throw new InternalServerErrorException(
         '회원가입 처리 중 오류가 발생했습니다.',
       );
     }
+  }
+
+  private isDuplicateEmailError(error: unknown): boolean {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
+    }
+
+    const meta = error.meta as
+      | {
+          target?: unknown;
+          constraint?: unknown;
+        }
+      | undefined;
+    const target = meta?.target;
+    const constraint = meta?.constraint;
+
+    const targetText =
+      Array.isArray(target) && target.length > 0
+        ? target.map(String).join(',')
+        : typeof target === 'string'
+          ? target
+          : '';
+    const constraintText = typeof constraint === 'string' ? constraint : '';
+    const rawText = `${targetText} ${constraintText} ${error.message}`.toLowerCase();
+
+    return rawText.includes('email') || rawText.includes('users_email_key');
   }
 
   async login(dto: LoginDto) {
