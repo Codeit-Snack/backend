@@ -34,6 +34,19 @@ export class AuthController {
     description:
       '`{ success: true, data: { user, organization: { id, name, businessNumber? }, membership, tokens? } }` — 조직 타입 필드 없음.',
   })
+  @ApiResponse({
+    status: 409,
+    description: '이미 가입된 이메일 (중복 회원가입)',
+    schema: {
+      example: {
+        success: false,
+        statusCode: 409,
+        errorCode: 'CONFLICT',
+        message:
+          '이미 가입된 이메일입니다. 로그인 또는 비밀번호 재설정을 이용해 주세요.',
+      },
+    },
+  })
   signUp(@Body() dto: SignUpDto) {
     return this.authService.signUp(dto);
   }

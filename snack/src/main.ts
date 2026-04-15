@@ -46,7 +46,7 @@ async function bootstrap() {
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
   const throttleTtl = Number(configService.get<string>('THROTTLE_TTL', '60'));
   const throttleLimit = Number(
-    configService.get<string>('THROTTLE_LIMIT', '10'),
+    configService.get<string>('THROTTLE_LIMIT', '30'),
   );
 
   // Render 등 리버스 프록시: X-Forwarded-For 신뢰. Config가 덮어쓰기 전에 process.env도 본다.

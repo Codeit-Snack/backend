@@ -118,11 +118,7 @@ export class InvitationService {
       expiresAt,
     );
 
-    const frontendUrl = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:5173',
-    );
-    const inviteLink = `${frontendUrl}/invite/accept?token=${token}`;
+    const inviteLink = this.buildInviteLink(token, email);
 
     try {
       await this.mail.sendInvitationEmail({
@@ -428,11 +424,7 @@ export class InvitationService {
       invitation.expiresAt,
     );
 
-    const frontendUrl = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:5173',
-    );
-    const inviteLink = `${frontendUrl}/invite/accept?token=${token}`;
+    const inviteLink = this.buildInviteLink(token, normalizedEmail);
     const remainingHours = Math.max(
       1,
       Math.ceil(
@@ -767,11 +759,7 @@ export class InvitationService {
       expiresAt,
     );
 
-    const frontendUrl = this.configService.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:5173',
-    );
-    const inviteLink = `${frontendUrl}/invite/accept?token=${token}`;
+    const inviteLink = this.buildInviteLink(token, email);
 
     await this.mail.sendInvitationEmail({
       to: email,
@@ -845,5 +833,14 @@ export class InvitationService {
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private buildInviteLink(token: string, email: string): string {
+    const frontendUrl = this.configService
+      .get<string>('FRONTEND_URL', 'http://localhost:5173')
+      .trim()
+      .replace(/\/$/, '');
+    const params = new URLSearchParams({ token, email });
+    return `${frontendUrl}/invite/accept?${params.toString()}`;
   }
 }
