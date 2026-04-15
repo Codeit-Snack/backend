@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/database/prisma.service';
 import { AppException } from '@/common/exceptions/app.exception';
 import { ErrorCode } from '@/common/enums/error-code.enum';
+import { DEFAULT_ORGANIZATION_CATEGORY_TREE } from '@/modules/catalog/constants/default-organization-categories';
 import { CreateCategoryDto } from '@/modules/catalog/dto/create-category.dto';
 import { UpdateCategoryDto } from '@/modules/catalog/dto/update-category.dto';
 import { CategoryListQueryDto } from '@/modules/catalog/dto/category-list-query.dto';
@@ -30,6 +31,56 @@ export class CategoryService {
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * 신규 조직에 기본 대·소분류를 한 번에 생성합니다.
+   * 필드 규칙은 `create`와 동일하며, 이미 카테고리가 있으면 스킵합니다.
+   */
+  async seedDefaultCategoriesForOrganization(
+    organizationId: bigint | number,
+  ): Promise<void> {
+    const orgId =
+      typeof organizationId === 'bigint'
+        ? organizationId
+        : BigInt(organizationId);
+
+    const existing = await this.prisma.category.count({
+      where: { organizationId: orgId },
+    });
+    if (existing > 0) {
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      let majorOrder = 0;
+      for (const { major, minors } of DEFAULT_ORGANIZATION_CATEGORY_TREE) {
+        const parent = await tx.category.create({
+          data: {
+            organizationId: orgId,
+            parentId: null,
+            name: major,
+            sortOrder: majorOrder,
+            isActive: true,
+          },
+        });
+        majorOrder += 1;
+
+        let minorOrder = 0;
+        for (const name of minors) {
+          await tx.category.create({
+            data: {
+              organizationId: orgId,
+              parentId: parent.id,
+              name,
+              sortOrder: minorOrder,
+              isActive: true,
+            },
+          });
+          minorOrder += 1;
+        }
+      }
+    });
   }
 
   async create(

@@ -119,11 +119,25 @@ export class BudgetPeriodService {
     const orgId = BigInt(organizationId);
     const amount = new Prisma.Decimal(dto.defaultMonthlyBudget);
 
-    const org = await this.prisma.organization.update({
-      where: { id: orgId },
-      data: { defaultMonthlyBudget: amount },
-      select: { id: true, defaultMonthlyBudget: true },
-    });
+    let org;
+    try {
+      org = await this.prisma.organization.update({
+        where: { id: orgId },
+        data: { defaultMonthlyBudget: amount },
+        select: { id: true, defaultMonthlyBudget: true },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new AppException(
+          ErrorCode.RESOURCE_NOT_FOUND,
+          '조직을 찾을 수 없습니다.',
+        );
+      }
+      throw error;
+    }
 
     await this.auditLog.log({
       organizationId: orgId,

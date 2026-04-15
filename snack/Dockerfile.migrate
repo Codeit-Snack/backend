@@ -5,7 +5,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
-RUN npm ci
+# postinstall runs `prisma generate` — schema must exist before npm ci (same as Dockerfile)
 COPY prisma ./prisma
 COPY prisma.config.ts ./
+RUN npm ci
 ENTRYPOINT ["npx", "prisma", "migrate", "deploy"]
