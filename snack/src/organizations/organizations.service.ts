@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { OrgRole, Prisma } from '@prisma/client';
 import { PrismaService } from '@/database/prisma.service';
+import { CategoryService } from '@/modules/catalog/services/category.service';
 import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
 import { CreateOrganizationDto } from '@/organizations/dto/create-organization.dto';
 import { UpdateOrganizationDto } from '@/organizations/dto/update-organization.dto';
@@ -14,7 +15,10 @@ import { OrganizationMembersQueryDto } from '@/organizations/dto/organization-me
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly categoryService: CategoryService,
+  ) {}
 
   // 조직 생성
   async create(currentUser: CurrentUserPayload, dto: CreateOrganizationDto) {
@@ -41,6 +45,10 @@ export class OrganizationsService {
         },
       },
     });
+
+    await this.categoryService.seedDefaultCategoriesForOrganization(
+      organization.id,
+    );
 
     const membership = organization.members[0];
 
