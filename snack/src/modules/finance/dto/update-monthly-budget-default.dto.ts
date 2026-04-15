@@ -13,6 +13,6 @@ export class UpdateMonthlyBudgetDefaultDto {
   })
   @IsNumber()
   @Min(0)
-  @Max(9_999_999_999_999.99)
+  @Max(999_999_999_999.99)
   defaultMonthlyBudget!: number;
 }
