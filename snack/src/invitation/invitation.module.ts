@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { PrismaModule } from '@/database/prisma.module';
-import { InvitationController } from '@/invitation/invitation.controller';
-import { InvitationService } from '@/invitation/invitation.service';
+import { PrismaModule } from '../database/prisma.module';
+import { InvitationController } from './invitation.controller';
+import { InvitationService } from './invitation.service';
 
 @Module({
   imports: [

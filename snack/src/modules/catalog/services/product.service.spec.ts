@@ -1,12 +1,9 @@
-import { collectCategorySubtreeIds } from '@/modules/catalog/services/product.service';
+import { collectCategorySubtreeIds } from './product.service';
 
 describe('collectCategorySubtreeIds', () => {
   it('returns null when root missing', () => {
     expect(
-      collectCategorySubtreeIds(
-        [{ id: 1n, parentId: null }],
-        99n,
-      ),
+      collectCategorySubtreeIds([{ id: 1n, parentId: null }], 99n),
     ).toBeNull();
   });
 

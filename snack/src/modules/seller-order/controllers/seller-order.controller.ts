@@ -61,9 +61,13 @@ export class SellerOrderController {
   @Post(':id/approve')
   @ApiOperation({
     summary: '주문 승인',
-    description:
-      'PENDING_SELLER_APPROVAL → APPROVED. 구매 요청 라인으로 purchase_order_items 생성.',
+    description: [
+      'PENDING_SELLER_APPROVAL → APPROVED.',
+      '구매자 조직 기준 UTC 현재 월 가용 예산으로 `items_amount + shipping_fee`만큼 예산 예약(ACTIVE)이 같은 트랜잭션에서 생성되어 잔액이 줄어듭니다. 부족하면 409.',
+      '이미 해당 PO에 예약이 있으면(수동 생성 등) 새로 만들지 않습니다.',
+    ].join(' '),
   })
+  @ApiResponse({ status: 409, description: '가용 예산 부족 등' })
   approve(
     @OrganizationId() sellerOrganizationId: number,
     @UserId() userId: number,

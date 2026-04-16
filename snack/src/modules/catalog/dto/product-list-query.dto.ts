@@ -9,7 +9,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { ProductListSort } from '@/modules/catalog/dto/product-list-sort.enum';
+import { ProductListSort } from './product-list-sort.enum';
 
 export class ProductListQueryDto {
   @ApiPropertyOptional({

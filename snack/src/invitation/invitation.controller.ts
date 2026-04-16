@@ -14,16 +14,16 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { CurrentUser } from '@/auth/decorators/current-user.decorator';
-import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
-import { InvitationService } from '@/invitation/invitation.service';
-import { InviteDto } from '@/invitation/dto/invite.dto';
-import { AcceptInvitationDto } from '@/invitation/dto/accept-invitation.dto';
-import { InviteSignUpDto } from '@/invitation/dto/invite-signup.dto';
-import { DeclineInvitationDto } from '@/invitation/dto/decline-invitation.dto';
-import { CancelInvitationDto } from '@/invitation/dto/cancel-invitation.dto';
-import { ResendInvitationDto } from '@/invitation/dto/resend-invitation.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { InvitationService } from './invitation.service';
+import { InviteDto } from './dto/invite.dto';
+import { AcceptInvitationDto } from './dto/accept-invitation.dto';
+import { InviteSignUpDto } from './dto/invite-signup.dto';
+import { DeclineInvitationDto } from './dto/decline-invitation.dto';
+import { CancelInvitationDto } from './dto/cancel-invitation.dto';
+import { ResendInvitationDto } from './dto/resend-invitation.dto';
 
 @ApiTags('Invitations')
 @Controller('invitations')

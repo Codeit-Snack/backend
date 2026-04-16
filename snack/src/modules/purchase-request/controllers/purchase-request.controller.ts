@@ -15,15 +15,15 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { CurrentUser } from '@/auth/decorators/current-user.decorator';
-import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
-import { PurchaseRequestService } from '@/modules/purchase-request/services/purchase-request.service';
-import { CreatePurchaseRequestDto } from '@/modules/purchase-request/dto/create-purchase-request.dto';
-import { PurchaseRequestListQueryDto } from '@/modules/purchase-request/dto/purchase-request-list-query.dto';
-import { PurchaseRequestDetailResponseDto } from '@/modules/purchase-request/dto/purchase-request-response.dto';
-import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
-import { UserId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../../../auth/decorators/current-user.decorator';
+import { PurchaseRequestService } from '../services/purchase-request.service';
+import { CreatePurchaseRequestDto } from '../dto/create-purchase-request.dto';
+import { PurchaseRequestListQueryDto } from '../dto/purchase-request-list-query.dto';
+import { PurchaseRequestDetailResponseDto } from '../dto/purchase-request-response.dto';
+import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
+import { UserId } from '../../catalog/decorators/catalog-context.decorator';
 
 @ApiTags('PurchaseRequest')
 @ApiBearerAuth('access-token')
@@ -45,7 +45,10 @@ export class PurchaseRequestController {
     description: '생성됨',
     type: PurchaseRequestDetailResponseDto,
   })
-  @ApiResponse({ status: 400, description: '빈 장바구니 / 비활성 상품 / 즉시구매 불가 조합' })
+  @ApiResponse({
+    status: 400,
+    description: '빈 장바구니 / 비활성 상품 / 즉시구매 불가 조합',
+  })
   @ApiResponse({ status: 403, description: '즉시 구매를 MEMBER가 요청' })
   @ApiResponse({ status: 409, description: '즉시 구매 시 예산 부족' })
   create(

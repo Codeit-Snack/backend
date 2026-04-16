@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '@/database/prisma.service';
-import { MailService } from '@/mail/mail.service';
-import { AuditLogService } from '@/modules/audit/audit-log.service';
-import { InvitationService } from '@/invitation/invitation.service';
-import { CategoryService } from '@/modules/catalog/services/category.service';
-import { AuthService } from '@/auth/auth.service';
+import { PrismaService } from '../database/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../modules/audit/audit-log.service';
+import { InvitationService } from '../invitation/invitation.service';
+import { CategoryService } from '../modules/catalog/services/category.service';
+import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
   let service: AuthService;

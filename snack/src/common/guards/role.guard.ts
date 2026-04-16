@@ -5,8 +5,8 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '@/common/decorators/role.decorator';
-import { Role } from '@/common/enums/role.enum';
+import { ROLES_KEY } from '../decorators/role.decorator';
+import { Role } from '../enums/role.enum';
 
 type AuthenticatedUser = {
   id: number;
