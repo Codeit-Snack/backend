@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@/database/prisma.service';
-import { AppException } from '@/common/exceptions/app.exception';
-import { ErrorCode } from '@/common/enums/error-code.enum';
-import { DEFAULT_ORGANIZATION_CATEGORY_TREE } from '@/modules/catalog/constants/default-organization-categories';
-import { CreateCategoryDto } from '@/modules/catalog/dto/create-category.dto';
-import { UpdateCategoryDto } from '@/modules/catalog/dto/update-category.dto';
-import { CategoryListQueryDto } from '@/modules/catalog/dto/category-list-query.dto';
-import { CategoryResponseDto } from '@/modules/catalog/dto/category-response.dto';
+import { PrismaService } from '../../../database/prisma.service';
+import { AppException } from '../../../common/exceptions/app.exception';
+import { ErrorCode } from '../../../common/enums/error-code.enum';
+import { DEFAULT_ORGANIZATION_CATEGORY_TREE } from '../constants/default-organization-categories';
+import { CreateCategoryDto } from '../dto/create-category.dto';
+import { UpdateCategoryDto } from '../dto/update-category.dto';
+import { CategoryListQueryDto } from '../dto/category-list-query.dto';
+import { CategoryResponseDto } from '../dto/category-response.dto';
 
 @Injectable()
 export class CategoryService {

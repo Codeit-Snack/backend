@@ -14,12 +14,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { CurrentUser } from '@/auth/decorators/current-user.decorator';
-import type { JwtPayload } from '@/common/types/jwt-payload.type';
-import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
-import { BudgetReservationService } from '@/modules/finance/services/budget-reservation.service';
-import { CreateBudgetReservationDto } from '@/modules/finance/dto/create-budget-reservation.dto';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
+import type { JwtPayload } from '../../../common/types/jwt-payload.type';
+import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
+import { BudgetReservationService } from '../services/budget-reservation.service';
+import { CreateBudgetReservationDto } from '../dto/create-budget-reservation.dto';
 
 @ApiTags('Budget')
 @ApiBearerAuth('access-token')
@@ -43,11 +43,19 @@ export class BudgetReservationController {
       '해당 UTC 월에 `budget_periods` 행이 없으면 자동 생성(B) 후 잔액을 계산합니다.',
       '',
       '`reservedAmount`를 생략하면 해당 PO의 `items_amount + shipping_fee`를 예약액으로 씁니다.',
+      '',
+      '**자동 예약:** 판매자가 PO를 승인하면 예약이 이미 생깁니다. 그 경우 이 API로 중복 생성하면 409(이미 예약 있음)입니다.',
     ].join('\n'),
   })
-  @ApiResponse({ status: 201, description: '생성됨 (래퍼 `{ success, data }`)' })
+  @ApiResponse({
+    status: 201,
+    description: '생성됨 (래퍼 `{ success, data }`)',
+  })
   @ApiResponse({ status: 403, description: 'SUPER_ADMIN 아님' })
-  @ApiResponse({ status: 409, description: '가용 예산 초과 등' })
+  @ApiResponse({
+    status: 409,
+    description: '가용 예산 초과, 또는 동일 PO에 예약 이미 존재',
+  })
   create(
     @OrganizationId() organizationId: number,
     @CurrentUser() user: JwtPayload,

@@ -10,19 +10,19 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'crypto';
 import { OrgRole, Prisma, auth_sessions_status } from '@prisma/client';
-import { ChangePasswordDto } from '@/auth/dto/change-password.dto';
-import { ForgotPasswordDto } from '@/auth/dto/forgot-password.dto';
-import { ResetPasswordDto } from '@/auth/dto/reset-password.dto';
-import { hashPassword, verifyPassword } from '@/common/utils/password.util';
-import { PrismaService } from '@/database/prisma.service';
-import { MailService } from '@/mail/mail.service';
-import { AuditLogService } from '@/modules/audit/audit-log.service';
-import { CategoryService } from '@/modules/catalog/services/category.service';
-import { InvitationService } from '@/invitation/invitation.service';
-import { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
-import { LoginDto } from '@/auth/dto/login.dto';
-import { RefreshTokenDto } from '@/auth/dto/refresh-token.dto';
-import { SignUpDto } from '@/auth/dto/signup.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { hashPassword, verifyPassword } from '../common/utils/password.util';
+import { PrismaService } from '../database/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../modules/audit/audit-log.service';
+import { CategoryService } from '../modules/catalog/services/category.service';
+import { InvitationService } from '../invitation/invitation.service';
+import { CurrentUserPayload } from './decorators/current-user.decorator';
+import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { SignUpDto } from './dto/signup.dto';
 
 @Injectable()
 export class AuthService {

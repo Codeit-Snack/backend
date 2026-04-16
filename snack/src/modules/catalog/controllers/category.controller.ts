@@ -17,16 +17,16 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser } from '@/auth/decorators/current-user.decorator';
-import type { JwtPayload } from '@/common/types/jwt-payload.type';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
-import { CategoryService } from '@/modules/catalog/services/category.service';
-import { CreateCategoryDto } from '@/modules/catalog/dto/create-category.dto';
-import { UpdateCategoryDto } from '@/modules/catalog/dto/update-category.dto';
-import { CategoryListQueryDto } from '@/modules/catalog/dto/category-list-query.dto';
-import { CategoryResponseDto } from '@/modules/catalog/dto/category-response.dto';
-import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
+import type { JwtPayload } from '../../../common/types/jwt-payload.type';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { assertOrgAdmin } from '../../finance/utils/assert-org-admin.util';
+import { CategoryService } from '../services/category.service';
+import { CreateCategoryDto } from '../dto/create-category.dto';
+import { UpdateCategoryDto } from '../dto/update-category.dto';
+import { CategoryListQueryDto } from '../dto/category-list-query.dto';
+import { CategoryResponseDto } from '../dto/category-response.dto';
+import { OrganizationId } from '../decorators/catalog-context.decorator';
 
 @ApiTags('Categories')
 @Controller('categories')

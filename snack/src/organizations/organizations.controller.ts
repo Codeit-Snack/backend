@@ -14,14 +14,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { CurrentUser } from '@/auth/decorators/current-user.decorator';
-import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
-import { OrganizationsService } from '@/organizations/organizations.service';
-import { CreateOrganizationDto } from '@/organizations/dto/create-organization.dto';
-import { UpdateOrganizationDto } from '@/organizations/dto/update-organization.dto';
-import { UpdateOrganizationMemberRoleDto } from '@/organizations/dto/update-organization-member-role.dto';
-import { OrganizationMembersQueryDto } from '@/organizations/dto/organization-members-query.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { OrganizationsService } from './organizations.service';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { UpdateOrganizationMemberRoleDto } from './dto/update-organization-member-role.dto';
+import { OrganizationMembersQueryDto } from './dto/organization-members-query.dto';
 
 @ApiTags('Organizations')
 @ApiBearerAuth('access-token')
@@ -51,7 +51,8 @@ export class OrganizationsController {
   @Get('me')
   @ApiOperation({
     summary: '현재 조직 조회',
-    description: 'JWT의 `organizationId`에 해당하는 조직(이름·선택적 사업자번호).',
+    description:
+      'JWT의 `organizationId`에 해당하는 조직(이름·선택적 사업자번호).',
   })
   getMyOrganization(@CurrentUser() currentUser: CurrentUserPayload) {
     return this.organizationsService.getMyOrganization(currentUser);

@@ -7,14 +7,12 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import * as fs from 'node:fs';
-import { AppModule } from '@/app.module';
-import { HttpExceptionFilter } from '@/common/filters/http-exception.filter';
-import { ErrorInterceptor } from '@/common/interceptors/error.interceptor';
-import { ResponseInterceptor } from '@/common/interceptors/response.interceptor';
+import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ErrorInterceptor } from './common/interceptors/error.interceptor';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
-function loadHttpsOptions():
-  | { key: Buffer; cert: Buffer }
-  | undefined {
+function loadHttpsOptions(): { key: Buffer; cert: Buffer } | undefined {
   const keyPath = process.env.HTTPS_KEY_PATH?.trim();
   const certPath = process.env.HTTPS_CERT_PATH?.trim();
   if (
@@ -46,7 +44,7 @@ async function bootstrap() {
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
   const throttleTtl = Number(configService.get<string>('THROTTLE_TTL', '60'));
   const throttleLimit = Number(
-    configService.get<string>('THROTTLE_LIMIT', '30'),
+    configService.get<string>('THROTTLE_LIMIT', '70'),
   );
 
   // Render 등 리버스 프록시: X-Forwarded-For 신뢰. Config가 덮어쓰기 전에 process.env도 본다.
@@ -127,13 +125,17 @@ async function bootstrap() {
     '',
     '**스펙** `/api/openapi.json` · `/api/openapi.yaml` · UI `/api/docs`',
     '',
+    '**전역 요청 제한** `express-rate-limit`: 기본 `THROTTLE_TTL`(초)당 `THROTTLE_LIMIT`회(기본 60초당 70회). 환경 변수로 조정.',
+    '',
+    '**예산 흐름** 판매자 주문 승인(`SellerOrder` → approve) 시 구매자 조직에 **예산 예약(ACTIVE)** 이 자동 생성되어 월 가용액이 줄어듭니다. PO당 예약 1건; 이후 지출 등록 시 CONSUMED. 거절·취소 시 예약 해제.',
+    '',
     '팀 온보딩: 저장소 `docs/TEAM.md`',
   ].join('\n');
 
   const swaggerBuilder = new DocumentBuilder()
     .setTitle('SNACK API')
     .setDescription(swaggerDescription)
-    .setVersion('1.1.0')
+    .setVersion('1.2.0')
     .addBearerAuth(
       {
         type: 'http',
@@ -156,17 +158,24 @@ async function bootstrap() {
     .addTag('Products', '판매 상품')
     .addTag('Cart', '장바구니')
     .addTag('PurchaseRequest', '구매 요청(구매자)')
-    .addTag('SellerOrder', '판매자 주문(PO)')
+    .addTag(
+      'SellerOrder',
+      '판매자 주문(PO). 승인 시 구매자 조직 기준 `items_amount + shipping_fee` 예산 예약이 같은 트랜잭션에서 생성됨(가용 부족 시 409).',
+    )
     .addTag(
       'Budget',
       [
-        '구매자 조직 기준 월별 예산(budget_periods)과 판매자 주문(PO) 단위 예산 예약(budget_reservations).',
-        '월 상한은 연·월당 1행; 예약은 PO당 1행(ACTIVE→RELEASED/CONSUMED).',
-        '`/budget/monthly-default`는 조직의 “매달 시작 예산” 기본값(organizations.default_monthly_budget).',
+        '구매자 조직 기준 월별 예산(`budget_periods`)과 PO 단위 예산 예약(`budget_reservations`).',
+        '판매자가 PO를 승인하면 예약이 **자동** 생성되므로, 수동 `POST /budget/reservations`는 보통 최고관리자 보정용; 이미 예약이 있으면 409.',
+        '월 상한은 연·월당 1행; 예약은 PO당 1건(ACTIVE→RELEASED/CONSUMED).',
+        '`/budget/monthly-default`는 조직의 “매달 시작 예산” 기본값(`organizations.default_monthly_budget`).',
         '월별 행이 없을 때 첫 조회·요약·잔액 계산 시 기본값으로 행이 자동 생성됨.',
       ].join(' '),
     )
-    .addTag('Expenses', '지출')
+    .addTag(
+      'Expenses',
+      '구매 완료(PO `PURCHASED`) 후 지출 확정. 해당 PO에 ACTIVE 예약이 있으면 자동 CONSUMED.',
+    )
     .addTag('Audit', '감사 로그 조회')
     .addTag('Mail', '메일 테스트')
     .addTag('Health', '헬스체크')

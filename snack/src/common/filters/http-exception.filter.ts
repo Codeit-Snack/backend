@@ -6,12 +6,9 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { AppException } from '@/common/exceptions/app.exception';
-import {
-  ErrorCode,
-  HTTP_STATUS_TO_ERROR_CODE,
-} from '@/common/enums/error-code.enum';
-import { ErrorResponse } from '@/common/types/error-response.type';
+import { AppException } from '../exceptions/app.exception';
+import { ErrorCode, HTTP_STATUS_TO_ERROR_CODE } from '../enums/error-code.enum';
+import { ErrorResponse } from '../types/error-response.type';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {

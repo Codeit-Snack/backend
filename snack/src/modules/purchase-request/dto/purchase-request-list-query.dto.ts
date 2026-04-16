@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PurchaseRequestStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
-import { PurchaseRequestListSort } from '@/modules/purchase-request/dto/purchase-request-list-sort.enum';
+import { PurchaseRequestListSort } from './purchase-request-list-sort.enum';
 
 export class PurchaseRequestListQueryDto {
   @ApiPropertyOptional({

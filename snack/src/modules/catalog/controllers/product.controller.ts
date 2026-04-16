@@ -17,17 +17,17 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { CurrentUser } from '@/auth/decorators/current-user.decorator';
-import type { JwtPayload } from '@/common/types/jwt-payload.type';
-import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
-import { ProductService } from '@/modules/catalog/services/product.service';
-import { CreateProductDto } from '@/modules/catalog/dto/create-product.dto';
-import { UpdateProductDto } from '@/modules/catalog/dto/update-product.dto';
-import { ProductListQueryDto } from '@/modules/catalog/dto/product-list-query.dto';
-import { ProductResponseDto } from '@/modules/catalog/dto/product-response.dto';
-import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
-import { UserId } from '@/modules/catalog/decorators/catalog-context.decorator';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
+import type { JwtPayload } from '../../../common/types/jwt-payload.type';
+import { assertOrgAdmin } from '../../finance/utils/assert-org-admin.util';
+import { ProductService } from '../services/product.service';
+import { CreateProductDto } from '../dto/create-product.dto';
+import { UpdateProductDto } from '../dto/update-product.dto';
+import { ProductListQueryDto } from '../dto/product-list-query.dto';
+import { ProductResponseDto } from '../dto/product-response.dto';
+import { OrganizationId } from '../decorators/catalog-context.decorator';
+import { UserId } from '../decorators/catalog-context.decorator';
 
 @ApiTags('Products')
 @ApiBearerAuth('access-token')
@@ -109,8 +109,7 @@ export class ProductController {
   @Delete(':id')
   @ApiOperation({
     summary: '상품 삭제 (soft delete)',
-    description:
-      '`is_active=false` 처리. **권한:** 조직 ADMIN · SUPER_ADMIN.',
+    description: '`is_active=false` 처리. **권한:** 조직 ADMIN · SUPER_ADMIN.',
   })
   @ApiResponse({ status: 204, description: '삭제됨' })
   @ApiResponse({ status: 403, description: '일반 멤버(MEMBER)는 삭제 불가' })

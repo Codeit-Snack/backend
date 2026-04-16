@@ -1,11 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** 장바구니 내용을 스냅샷으로 옮겨 생성 (body는 메시지 등 선택) */
 export class CreatePurchaseRequestDto {
