@@ -7,16 +7,16 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { AuthService } from '@/auth/auth.service';
-import { CurrentUser } from '@/auth/decorators/current-user.decorator';
-import type { CurrentUserPayload } from '@/auth/decorators/current-user.decorator';
-import { LoginDto } from '@/auth/dto/login.dto';
-import { RefreshTokenDto } from '@/auth/dto/refresh-token.dto';
-import { SignUpDto } from '@/auth/dto/signup.dto';
-import { ChangePasswordDto } from '@/auth/dto/change-password.dto';
-import { ForgotPasswordDto } from '@/auth/dto/forgot-password.dto';
-import { ResetPasswordDto } from '@/auth/dto/reset-password.dto';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { AuthService } from './auth.service';
+import { CurrentUser } from './decorators/current-user.decorator';
+import type { CurrentUserPayload } from './decorators/current-user.decorator';
+import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { SignUpDto } from './dto/signup.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('Auth')
 @Controller('auth')

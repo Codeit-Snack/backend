@@ -4,7 +4,8 @@ import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class OrganizationMembersQueryDto {
   @ApiPropertyOptional({
-    description: '이름(displayName) 또는 이메일 부분 일치 검색 (대소문자 구분은 DB 설정에 따름)',
+    description:
+      '이름(displayName) 또는 이메일 부분 일치 검색 (대소문자 구분은 DB 설정에 따름)',
     example: '홍길',
   })
   @IsOptional()

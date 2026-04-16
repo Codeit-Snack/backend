@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '@/database/prisma.service';
-import { AppException } from '@/common/exceptions/app.exception';
-import { ErrorCode } from '@/common/enums/error-code.enum';
-import { AddCartItemDto } from '@/modules/cart/dto/add-cart-item.dto';
-import { UpdateCartItemQuantityDto } from '@/modules/cart/dto/update-cart-item-quantity.dto';
+import { PrismaService } from '../../../database/prisma.service';
+import { AppException } from '../../../common/exceptions/app.exception';
+import { ErrorCode } from '../../../common/enums/error-code.enum';
+import { AddCartItemDto } from '../dto/add-cart-item.dto';
+import { UpdateCartItemQuantityDto } from '../dto/update-cart-item-quantity.dto';
 import {
   CartItemResponseDto,
   CartProductSummaryDto,
   CartResponseDto,
-} from '@/modules/cart/dto/cart-response.dto';
+} from '../dto/cart-response.dto';
 
 const productSummarySelect = {
   id: true,

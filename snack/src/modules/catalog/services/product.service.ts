@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '@/database/prisma.service';
-import { AppException } from '@/common/exceptions/app.exception';
-import { ErrorCode } from '@/common/enums/error-code.enum';
-import { CreateProductDto } from '@/modules/catalog/dto/create-product.dto';
-import { UpdateProductDto } from '@/modules/catalog/dto/update-product.dto';
-import { ProductListQueryDto } from '@/modules/catalog/dto/product-list-query.dto';
-import { ProductListSort } from '@/modules/catalog/dto/product-list-sort.enum';
-import { ProductResponseDto } from '@/modules/catalog/dto/product-response.dto';
+import { PrismaService } from '../../../database/prisma.service';
+import { AppException } from '../../../common/exceptions/app.exception';
+import { ErrorCode } from '../../../common/enums/error-code.enum';
+import { CreateProductDto } from '../dto/create-product.dto';
+import { UpdateProductDto } from '../dto/update-product.dto';
+import { ProductListQueryDto } from '../dto/product-list-query.dto';
+import { ProductListSort } from '../dto/product-list-sort.enum';
+import { ProductResponseDto } from '../dto/product-response.dto';
 
 /** @internal 단위 테스트용 — DB 없이 하위 카테고리 ID 집합 계산 */
 export function collectCategorySubtreeIds(

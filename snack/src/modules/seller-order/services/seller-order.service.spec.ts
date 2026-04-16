@@ -8,6 +8,7 @@ import { SellerOrderService } from './seller-order.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditLogService } from '../../../modules/audit/audit-log.service';
 import { BudgetPeriodService } from '../../../modules/finance/services/budget-period.service';
+import { BudgetReservationService } from '../../../modules/finance/services/budget-reservation.service';
 import { ExpenseService } from '../../../modules/finance/services/expense.service';
 import { ErrorCode } from '../../../common/enums/error-code.enum';
 
@@ -58,6 +59,19 @@ describe('SellerOrderService', () => {
           },
         },
         { provide: ExpenseService, useValue: { create: jest.fn() } },
+        {
+          provide: BudgetReservationService,
+          useValue: {
+            ensureReservationForApprovedPurchaseOrder: jest
+              .fn()
+              .mockResolvedValue({
+                reservationId: 77n,
+                buyerOrganizationId: 2n,
+                purchaseOrderId: 1n,
+                reservedAmount: new Prisma.Decimal('15500'),
+              }),
+          },
+        },
       ],
     }).compile();
 
@@ -117,6 +131,7 @@ describe('SellerOrderService', () => {
       const po = {
         id: 1n,
         purchase_request_id: 100n,
+        buyer_organization_id: 2n,
         status: purchase_orders_status.PENDING_SELLER_APPROVAL,
       };
       const tx = {
@@ -131,9 +146,10 @@ describe('SellerOrderService', () => {
           create: jest.fn().mockResolvedValue({}),
         },
         purchaseRequest: {
-          findUnique: jest
-            .fn()
-            .mockResolvedValue({ id: 100n, status: PurchaseRequestStatus.OPEN }),
+          findUnique: jest.fn().mockResolvedValue({
+            id: 100n,
+            status: PurchaseRequestStatus.OPEN,
+          }),
           update: jest.fn().mockResolvedValue({}),
         },
       };
@@ -141,12 +157,10 @@ describe('SellerOrderService', () => {
         async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
       );
 
-      const findOneSpy = jest
-        .spyOn(service, 'findOne')
-        .mockResolvedValue({
-          id: 1,
-          status: purchase_orders_status.APPROVED,
-        } as Awaited<ReturnType<SellerOrderService['findOne']>>);
+      const findOneSpy = jest.spyOn(service, 'findOne').mockResolvedValue({
+        id: 1,
+        status: purchase_orders_status.APPROVED,
+      } as Awaited<ReturnType<SellerOrderService['findOne']>>);
 
       const result = await service.approve(10, 99, 1, { shippingFee: '500' });
 
@@ -162,6 +176,12 @@ describe('SellerOrderService', () => {
         }),
       );
       expect(tx.purchaseRequest.update).toHaveBeenCalled();
+      expect(auditLog.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'BUDGET_RESERVATION_CREATE',
+          organizationId: 2n,
+        }),
+      );
       expect(auditLog.log).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'SELLER_ORDER_APPROVE',

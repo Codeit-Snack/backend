@@ -7,20 +7,21 @@ import {
   purchase_orders_platform,
   purchase_orders_status,
 } from '@prisma/client';
-import { PrismaService } from '@/database/prisma.service';
-import type { JwtPayload } from '@/common/types/jwt-payload.type';
-import { BudgetPeriodService } from '@/modules/finance/services/budget-period.service';
-import { ExpenseService } from '@/modules/finance/services/expense.service';
-import { assertOrgAdmin } from '@/modules/finance/utils/assert-org-admin.util';
-import { AuditLogService } from '@/modules/audit/audit-log.service';
-import { AppException } from '@/common/exceptions/app.exception';
-import { ErrorCode } from '@/common/enums/error-code.enum';
-import { SellerOrderListQueryDto } from '@/modules/seller-order/dto/seller-order-list-query.dto';
-import { ApproveSellerOrderDto } from '@/modules/seller-order/dto/approve-seller-order.dto';
-import { RejectSellerOrderDto } from '@/modules/seller-order/dto/reject-seller-order.dto';
-import { RecordPurchaseDto } from '@/modules/seller-order/dto/record-purchase.dto';
-import { UpdateShippingDto } from '@/modules/seller-order/dto/update-shipping.dto';
-import { releaseActiveBudgetReservationsForPurchaseOrders } from '@/modules/finance/utils/release-budget-reservations.util';
+import { PrismaService } from '../../../database/prisma.service';
+import type { JwtPayload } from '../../../common/types/jwt-payload.type';
+import { BudgetPeriodService } from '../../finance/services/budget-period.service';
+import { BudgetReservationService } from '../../finance/services/budget-reservation.service';
+import { ExpenseService } from '../../finance/services/expense.service';
+import { assertOrgAdmin } from '../../finance/utils/assert-org-admin.util';
+import { AuditLogService } from '../../audit/audit-log.service';
+import { AppException } from '../../../common/exceptions/app.exception';
+import { ErrorCode } from '../../../common/enums/error-code.enum';
+import { SellerOrderListQueryDto } from '../dto/seller-order-list-query.dto';
+import { ApproveSellerOrderDto } from '../dto/approve-seller-order.dto';
+import { RejectSellerOrderDto } from '../dto/reject-seller-order.dto';
+import { RecordPurchaseDto } from '../dto/record-purchase.dto';
+import { UpdateShippingDto } from '../dto/update-shipping.dto';
+import { releaseActiveBudgetReservationsForPurchaseOrders } from '../../finance/utils/release-budget-reservations.util';
 
 @Injectable()
 export class SellerOrderService {
@@ -28,6 +29,7 @@ export class SellerOrderService {
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
     private readonly budgetPeriod: BudgetPeriodService,
+    private readonly budgetReservation: BudgetReservationService,
     private readonly expenseService: ExpenseService,
   ) {}
 
@@ -249,7 +251,7 @@ export class SellerOrderService {
     orderId: number,
     dto: ApproveSellerOrderDto,
   ) {
-    await this.prisma.$transaction(async (tx) => {
+    const reservationAudit = await this.prisma.$transaction(async (tx) => {
       const po = await tx.purchase_orders.findFirst({
         where: {
           id: BigInt(orderId),
@@ -296,7 +298,32 @@ export class SellerOrderService {
       });
 
       await this.syncPurchaseRequestStatus(tx, po.purchase_request_id);
+
+      return this.budgetReservation.ensureReservationForApprovedPurchaseOrder(
+        tx,
+        {
+          buyerOrganizationId: Number(po.buyer_organization_id),
+          purchaseOrderId: po.id,
+          createdByUserId: BigInt(userId),
+        },
+      );
     });
+
+    if (reservationAudit) {
+      await this.auditLog.log({
+        organizationId: reservationAudit.buyerOrganizationId,
+        actorUserId: BigInt(userId),
+        action: 'BUDGET_RESERVATION_CREATE',
+        targetType: 'budget_reservation',
+        targetId: reservationAudit.reservationId,
+        message: null,
+        metadata: {
+          purchaseOrderId: Number(reservationAudit.purchaseOrderId),
+          reservedAmount: reservationAudit.reservedAmount.toString(),
+          source: 'SELLER_ORDER_APPROVE',
+        },
+      });
+    }
 
     await this.auditLog.log({
       organizationId: BigInt(sellerOrganizationId),
@@ -696,21 +723,17 @@ export class SellerOrderService {
         shippingFee: shipStr,
       });
 
-      const extNo = `I${purchaseRequestId}-${Number(po.id)}-${randomBytes(6).toString('hex')}`.slice(
-        0,
-        100,
-      );
+      const extNo =
+        `I${purchaseRequestId}-${Number(po.id)}-${randomBytes(6).toString('hex')}`.slice(
+          0,
+          100,
+        );
 
-      await this.recordPurchase(
-        buyerOrganizationId,
-        userIdNum,
-        Number(po.id),
-        {
-          platform: purchase_orders_platform.OTHER,
-          externalOrderNo: extNo,
-          note: '즉시 구매',
-        },
-      );
+      await this.recordPurchase(buyerOrganizationId, userIdNum, Number(po.id), {
+        platform: purchase_orders_platform.OTHER,
+        externalOrderNo: extNo,
+        note: '즉시 구매',
+      });
 
       const poFresh = await this.prisma.purchase_orders.findUniqueOrThrow({
         where: { id: po.id },

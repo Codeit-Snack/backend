@@ -1,7 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
-import { ExpenseListSort } from '@/modules/finance/dto/expense-list-sort.enum';
+import {
+  IsEnum,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  Max,
+  Min,
+} from 'class-validator';
+import { ExpenseListSort } from './expense-list-sort.enum';
 
 export class ExpenseListQueryDto {
   @ApiPropertyOptional({ minimum: 1, default: 1 })

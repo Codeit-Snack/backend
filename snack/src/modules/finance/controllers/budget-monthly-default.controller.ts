@@ -5,12 +5,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { CurrentUser } from '@/auth/decorators/current-user.decorator';
-import type { JwtPayload } from '@/common/types/jwt-payload.type';
-import { OrganizationId } from '@/modules/catalog/decorators/catalog-context.decorator';
-import { UpdateMonthlyBudgetDefaultDto } from '@/modules/finance/dto/update-monthly-budget-default.dto';
-import { BudgetPeriodService } from '@/modules/finance/services/budget-period.service';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../auth/decorators/current-user.decorator';
+import type { JwtPayload } from '../../../common/types/jwt-payload.type';
+import { OrganizationId } from '../../catalog/decorators/catalog-context.decorator';
+import { UpdateMonthlyBudgetDefaultDto } from '../dto/update-monthly-budget-default.dto';
+import { BudgetPeriodService } from '../services/budget-period.service';
 
 @ApiTags('Budget')
 @ApiBearerAuth('access-token')
@@ -47,7 +47,10 @@ export class BudgetMonthlyDefaultController {
     @OrganizationId() organizationId: number,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.budgetPeriodService.getMonthlyBudgetDefault(organizationId, user);
+    return this.budgetPeriodService.getMonthlyBudgetDefault(
+      organizationId,
+      user,
+    );
   }
 
   @Patch()

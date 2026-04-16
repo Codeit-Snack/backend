@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '@/database/prisma.service';
-import type { JwtPayload } from '@/common/types/jwt-payload.type';
-import { AuditLogService } from '@/modules/audit/audit-log.service';
-import { AppException } from '@/common/exceptions/app.exception';
-import { ErrorCode } from '@/common/enums/error-code.enum';
-import { assertSuperAdmin } from '@/modules/finance/utils/assert-super-admin.util';
-import { UpsertBudgetPeriodDto } from '@/modules/finance/dto/upsert-budget-period.dto';
-import { UpdateMonthlyBudgetDefaultDto } from '@/modules/finance/dto/update-monthly-budget-default.dto';
+import { PrismaService } from '../../../database/prisma.service';
+import type { JwtPayload } from '../../../common/types/jwt-payload.type';
+import { AuditLogService } from '../../audit/audit-log.service';
+import { AppException } from '../../../common/exceptions/app.exception';
+import { ErrorCode } from '../../../common/enums/error-code.enum';
+import { assertSuperAdmin } from '../utils/assert-super-admin.util';
+import { UpsertBudgetPeriodDto } from '../dto/upsert-budget-period.dto';
+import { UpdateMonthlyBudgetDefaultDto } from '../dto/update-monthly-budget-default.dto';
 
 @Injectable()
 export class BudgetPeriodService {

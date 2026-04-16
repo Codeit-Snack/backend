@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CategoryResponseDto } from '@/modules/catalog/dto/category-response.dto';
+import { CategoryResponseDto } from './category-response.dto';
 
 /** Decimal(price) 직렬화: 문자열로 노출하여 정확도 유지 */
 export class ProductResponseDto {
@@ -43,7 +43,8 @@ export class ProductResponseDto {
   updatedAt!: string;
 
   @ApiPropertyOptional({
-    description: '목록·상세 모두에서 채워질 수 있음 (목록은 `include category` 시)',
+    description:
+      '목록·상세 모두에서 채워질 수 있음 (목록은 `include category` 시)',
     type: () => CategoryResponseDto,
     nullable: true,
   })

@@ -6,7 +6,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ApiPasswordProperty } from '@/common/swagger/api-password.decorator';
+import { ApiPasswordProperty } from '../../common/swagger/api-password.decorator';
 
 export class LoginDto {
   @ApiProperty({ example: 'user@example.com' })

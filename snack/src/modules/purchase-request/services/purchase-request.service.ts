@@ -6,21 +6,21 @@ import {
   purchase_orders_status,
   type PurchaseRequest,
 } from '@prisma/client';
-import { PrismaService } from '@/database/prisma.service';
-import { AuditLogService } from '@/modules/audit/audit-log.service';
-import { AppException } from '@/common/exceptions/app.exception';
-import { ErrorCode } from '@/common/enums/error-code.enum';
-import { CreatePurchaseRequestDto } from '@/modules/purchase-request/dto/create-purchase-request.dto';
-import { PurchaseRequestListQueryDto } from '@/modules/purchase-request/dto/purchase-request-list-query.dto';
-import { PurchaseRequestListSort } from '@/modules/purchase-request/dto/purchase-request-list-sort.enum';
+import { PrismaService } from '../../../database/prisma.service';
+import { AuditLogService } from '../../audit/audit-log.service';
+import { AppException } from '../../../common/exceptions/app.exception';
+import { ErrorCode } from '../../../common/enums/error-code.enum';
+import { CreatePurchaseRequestDto } from '../dto/create-purchase-request.dto';
+import { PurchaseRequestListQueryDto } from '../dto/purchase-request-list-query.dto';
+import { PurchaseRequestListSort } from '../dto/purchase-request-list-sort.enum';
 import {
   PurchaseRequestDetailResponseDto,
   PurchaseRequestItemResponseDto,
   PurchaseRequestSummaryResponseDto,
-} from '@/modules/purchase-request/dto/purchase-request-response.dto';
-import { releaseActiveBudgetReservationsForPurchaseOrders } from '@/modules/finance/utils/release-budget-reservations.util';
-import type { JwtPayload } from '@/common/types/jwt-payload.type';
-import { SellerOrderService } from '@/modules/seller-order/services/seller-order.service';
+} from '../dto/purchase-request-response.dto';
+import { releaseActiveBudgetReservationsForPurchaseOrders } from '../../finance/utils/release-budget-reservations.util';
+import type { JwtPayload } from '../../../common/types/jwt-payload.type';
+import { SellerOrderService } from '../../seller-order/services/seller-order.service';
 
 type RequestWithItems = PurchaseRequest & {
   purchase_request_items: Array<{
