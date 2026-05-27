@@ -29,8 +29,7 @@ GET https://anjgkwl.n-e.kr/api/health
 | 구분 | 내용 |
 |------|------|
 | **설계 목표** | **AWS EC2** + Docker Compose + Nginx/TLS ([deploy/README.md](./deploy/README.md)) |
-| **현재** | EC2는 **비용 문제로 중단** — 재구축 **예정**, 아직 미진행 |
-| **당분간 운영** | 무료 도메인 `https://anjgkwl.n-e.kr` (FE `NEXT_PUBLIC_API_BASE_URL`과 동일 베이스) |
+| **현재** | EC2는 **비용 문제로 중단** — 재구축 **예정**, 아직 미진행, 도메인 `https://anjgkwl.n-e.kr` 이었음 |
 | **도메인** | 무료 도메인 사이트에서 발급 — **URL 교체 가능**. EC2 복구 시 공식 도메인·HTTPS로 정리 예정 |
 
 > README의 운영 URL은 위 표를 기준으로 합니다. EC2·도메인이 바뀌면 **Base URL 표**와 [docs/TEAM.md](./docs/TEAM.md)의 `BASE_URL`만 맞춰 주면 됩니다. 이력서·포트폴리오 링크도 동일하게 갱신하세요.
