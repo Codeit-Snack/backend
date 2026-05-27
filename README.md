@@ -11,17 +11,29 @@
 - API 경로 앞에는 전역 prefix **`/api`** 가 붙습니다.
 - 로컬 개발 기본 포트: **3000**
 
-| 환경 | URL |
-|------|-----|
-| 로컬 | `http://localhost:3000` |
-| 배포 (Render) | `https://snack-xlvk.onrender.com` |
-| 프론트 (Vercel) | `https://frontend042.vercel.app` |
+| 환경 | URL | 비고 |
+|------|-----|------|
+| 로컬 | `http://localhost:3000` | 개발용 |
+| **현재 운영 API** | `https://anjgkwl.n-e.kr` | 임시 무료 도메인 — **변경될 수 있음** |
+| 프론트 (Vercel) | `https://frontend042.vercel.app` | FE 기본 호스팅 |
+| Render (대안) | `https://snack-xlvk.onrender.com` | 코드·CI 기본값. EC2 복구 전 백업/헬스 ping용 |
 
 헬스체크:
 
 ```
-GET /api/health
+GET https://anjgkwl.n-e.kr/api/health
 ```
+
+### 배포 상태 (운영)
+
+| 구분 | 내용 |
+|------|------|
+| **설계 목표** | **AWS EC2** + Docker Compose + Nginx/TLS ([deploy/README.md](./deploy/README.md)) |
+| **현재** | EC2는 **비용 문제로 중단** — 재구축 **예정**, 아직 미진행 |
+| **당분간 운영** | 무료 도메인 `https://anjgkwl.n-e.kr` (FE `NEXT_PUBLIC_API_BASE_URL`과 동일 베이스) |
+| **도메인** | 무료 도메인 사이트에서 발급 — **URL 교체 가능**. EC2 복구 시 공식 도메인·HTTPS로 정리 예정 |
+
+> README의 운영 URL은 위 표를 기준으로 합니다. EC2·도메인이 바뀌면 **Base URL 표**와 [docs/TEAM.md](./docs/TEAM.md)의 `BASE_URL`만 맞춰 주면 됩니다. 이력서·포트폴리오 링크도 동일하게 갱신하세요.
 
 ---
 
@@ -257,7 +269,7 @@ snack/
 
 # 🔗 FE 연동 시 체크리스트
 
-- [ ] `NEXT_PUBLIC_API_BASE_URL` = 배포 BE URL (기본값 예: `https://snack-xlvk.onrender.com`)  
+- [ ] `NEXT_PUBLIC_API_BASE_URL` = 현재 운영 BE (`https://anjgkwl.n-e.kr` — 도메인 변경 시 `.env`·Vercel env 동기화)  
 - [ ] API 호출 시 `Authorization: Bearer`  
 - [ ] Swagger `{BASE_URL}/api/docs`에서 토큰 **Authorize** 후 플로우 검증  
 - [ ] 구매 플로우: Cart → PurchaseRequest → Seller approve → (예산 예약) → Purchase → Expense  
@@ -269,4 +281,5 @@ snack/
 
 - 팀 온보딩: [docs/TEAM.md](./docs/TEAM.md)  
 - GitHub Actions: `.github/workflows/backend-ci.yml` (lint·test)  
-- Render: `render.yaml` — 서비스 `snack-backend`, health `/api/health`
+- **EC2 배포 가이드**: [deploy/README.md](./deploy/README.md) (목표 인프라 — 현재는 미가동)  
+- Render: `render.yaml` — `snack-backend`, `/api/health` (EC2 대안·keep-alive 워크플로)
